@@ -5,12 +5,7 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract PortfolioView is Ownable, ReentrancyGuard {
-    struct View {
-        string id;
-        mapping(address => bool) viewed;
-    }
-
-    mapping(string => View) public views;
+    mapping(string => mapping(address => bool)) public views;
 
     uint256 public OWNER_FEE_PERCENT = 30;
     uint256 public minPayment = 0.00001 ether;
@@ -29,8 +24,8 @@ contract PortfolioView is Ownable, ReentrancyGuard {
         _;
     }
 
-    constructor(address _adminAddress) Ownable(_adminAddress) {
-        transferOwnership(_adminAddress);
+    constructor() Ownable(msg.sender) {
+        transferOwnership(msg.sender);
     }
 
 
@@ -53,13 +48,10 @@ contract PortfolioView is Ownable, ReentrancyGuard {
     nonReentrant
     {
         require(_viewee != msg.sender, "Error: Sender cannot view their own portfolio");
-        View storage _view = views[_viewerID];
+        mapping(address => bool) storage viewed = views[_viewerID];
+        require(!viewed[_viewee], "Error: Already viewed this viewportfolio before");
 
-        require(!_view.viewed[_viewee], "Error: Already viewed this viewportfolio before");
-
-        _view.id = _viewerID;
-        _view.viewed[_viewee] = true;
-
+        viewed[_viewee] = true;
 
         uint256 ownerFee = (msg.value * OWNER_FEE_PERCENT) / 100;
         uint256 vieweeAmount = msg.value - ownerFee;
@@ -67,7 +59,7 @@ contract PortfolioView is Ownable, ReentrancyGuard {
         (bool successViewee, ) = payable(_viewee).call{value: vieweeAmount}("");
         require(successViewee, "Error: Failed to send payment to viewee");
 
-        (bool successOwner, ) = payable(owner()).call{value: ownerFee}("");
+        (bool successOwner, ) = payable(this).call{value: ownerFee}("");
         require(successOwner, "Error: Failed to send payment to owner");
 
         emit PaymentSent(msg.sender, _viewee, vieweeAmount);
