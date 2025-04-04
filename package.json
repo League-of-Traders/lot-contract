@@ -1,0 +1,32 @@
+{
+  "name": "lot_contract",
+  "version": "1.0.0",
+  "description": "Lot contracts",
+  "main": "index.js",
+  "directories": {
+    "test": "projects/view-portfolio/tests"
+  },
+  "scripts": {
+    "format:check": "prettier --check 'projects/**/*.{js,ts,sol}'",
+    "format:write": "prettier --write 'projects/**/*.{js,ts,sol}'",
+    "test": "lerna run test",
+    "prepare": "husky install"
+  },
+  "repository": {
+    "format:check": "prettier --check 'projects/**/*.{js,ts,sol}'",
+    "format:write": "prettier --write 'projects/**/*.{js,ts,sol}'",
+    "type": "git",
+    "url": "git+https://github.com/League-of-Traders/lot-contract.git"
+  },
+  "author": "LeagueOfTraders",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/League-of-Traders/lot-contract/issues"
+  },
+  "homepage": "https://github.com/League-of-Traders/lot-contract#readme",
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lerna": "^8.2.1",
+    "prettier": "3.5.3"
+  }
+}
