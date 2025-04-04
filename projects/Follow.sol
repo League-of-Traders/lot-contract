@@ -30,7 +30,7 @@ contract Follow is ReentrancyGuard {
         following.followerList.push(followee);
         uint256 ownerFee = msg.value;
 
-        (bool successOwner, ) = payable(owner).call{value: ownerFee}("");
+        (bool successOwner, ) = payable(address(this)).call{value: ownerFee}("");
         require(successOwner, "Error: Failed to send payment to owner");
 
         emit Followed(follower, followee);
