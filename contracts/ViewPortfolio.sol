@@ -5,10 +5,11 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract PortfolioView is Ownable, ReentrancyGuard {
-    mapping(string => mapping(address => bool)) public views;
+    mapping(string => mapping(address => uint256)) public views;
 
     uint256 public OWNER_FEE_PERCENT = 30;
-    uint256 public minPayment = 0.00001 ether;
+    uint256 public minPayment = 0.000001 ether;
+    uint256 public viewCooldown = 1 days;
 
     event PortfolioViewed(string viewer, address indexed viewee);
     event PaymentSent(address indexed from, address indexed to, uint256 amount);
@@ -28,17 +29,18 @@ contract PortfolioView is Ownable, ReentrancyGuard {
         transferOwnership(msg.sender);
     }
 
-
     function setAdmin(address _adminAddress) public onlyOwner {
         require(msg.sender == owner(), "Error: Only owner can set admin");
-
         transferOwnership(_adminAddress);
     }
 
-    function setOwnerFee( uint256 FeePercent ) public onlyOwner {
+    function setOwnerFee(uint256 FeePercent) public onlyOwner {
         require(FeePercent < 100, "Error: Invalid fee percentage");
-
         OWNER_FEE_PERCENT = FeePercent;
+    }
+
+    function hasViewedToday(string memory _viewerID, address _viewee) internal view returns (bool) {
+        return views[_viewerID][_viewee] + viewCooldown > block.timestamp;
     }
 
     function payToView(string memory _viewerID, address _viewee)
@@ -48,22 +50,25 @@ contract PortfolioView is Ownable, ReentrancyGuard {
     nonReentrant
     {
         require(_viewee != msg.sender, "Error: Sender cannot view their own portfolio");
-        mapping(address => bool) storage viewed = views[_viewerID];
-        require(!viewed[_viewee], "Error: Already viewed this viewportfolio before");
 
-        viewed[_viewee] = true;
+        if (!hasViewedToday(_viewerID, _viewee)) {
+            // 하루 안 지났으면 결제 처리
+            uint256 ownerFee = (msg.value * OWNER_FEE_PERCENT) / 100;
+            uint256 vieweeAmount = msg.value - ownerFee;
 
-        uint256 ownerFee = (msg.value * OWNER_FEE_PERCENT) / 100;
-        uint256 vieweeAmount = msg.value - ownerFee;
+            (bool successViewee, ) = payable(_viewee).call{value: vieweeAmount}("");
+            require(successViewee, "Error: Failed to send payment to viewee");
 
-        (bool successViewee, ) = payable(_viewee).call{value: vieweeAmount}("");
-        require(successViewee, "Error: Failed to send payment to viewee");
+            (bool successOwner, ) = payable(address(this)).call{value: ownerFee}("");
+            require(successOwner, "Error: Failed to send payment to owner");
 
-        (bool successOwner, ) = payable(this).call{value: ownerFee}("");
-        require(successOwner, "Error: Failed to send payment to owner");
+            emit PaymentSent(msg.sender, _viewee, vieweeAmount);
+            emit OwnerFeePaid(owner(), ownerFee);
+        } else {
+            require(msg.value == 0, "Error: Already paid today. No need to pay again.");
+        }
 
-        emit PaymentSent(msg.sender, _viewee, vieweeAmount);
-        emit OwnerFeePaid(owner(), ownerFee);
+        views[_viewerID][_viewee] = block.timestamp;
         emit PortfolioViewed(_viewerID, _viewee);
     }
 
