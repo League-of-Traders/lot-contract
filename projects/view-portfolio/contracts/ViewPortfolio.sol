@@ -29,12 +29,12 @@ contract PortfolioView is Ownable, ReentrancyGuard {
         transferOwnership(msg.sender);
     }
 
-    function setAdmin(address _adminAddress) public onlyOwner {
+    function setAdmin(address _adminAddress) external onlyOwner {
         require(msg.sender == owner(), "Error: Only owner can set admin");
         transferOwnership(_adminAddress);
     }
 
-    function setOwnerFee(uint256 FeePercent) public onlyOwner {
+    function setOwnerFee(uint256 FeePercent) external onlyOwner {
         require(FeePercent < 100, "Error: Invalid fee percentage");
         OWNER_FEE_PERCENT = FeePercent;
     }
@@ -56,19 +56,20 @@ contract PortfolioView is Ownable, ReentrancyGuard {
             uint256 ownerFee = (msg.value * OWNER_FEE_PERCENT) / 100;
             uint256 vieweeAmount = msg.value - ownerFee;
 
+            views[_viewerID][_viewee] = block.timestamp;
+            
             (bool successViewee, ) = payable(_viewee).call{value: vieweeAmount}("");
             require(successViewee, "Error: Failed to send payment to viewee");
 
             (bool successOwner, ) = payable(address(this)).call{value: ownerFee}("");
             require(successOwner, "Error: Failed to send payment to owner");
-
+            
             emit PaymentSent(msg.sender, _viewee, vieweeAmount);
             emit OwnerFeePaid(owner(), ownerFee);
         } else {
-            require(msg.value == 0, "Error: Already paid today. No need to pay again.");
+            revert("Already viewed today");
         }
 
-        views[_viewerID][_viewee] = block.timestamp;
         emit PortfolioViewed(_viewerID, _viewee);
     }
 
