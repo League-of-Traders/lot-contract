@@ -11,8 +11,8 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
 
     uint256 public immutable startBlock;
     uint256 public immutable totalRewardCap;
-    uint256 public constant BLOCKS_PER_YEAR = 10512000;
-    uint256 public constant BLOCKS_PER_DAY = 28800;
+    uint256 public constant BLOCKS_PER_YEAR = 10512000; // 1year
+    uint256 public constant BLOCKS_PER_DAY = 28800; // 1day
 
     struct StakeInfo {
         uint256 amount;
@@ -66,7 +66,7 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         require(lockupDays >= 1, "Minimum 1 day lockup required");
 
         settleReward(msg.sender);
-        stakingToken.transferFrom(msg.sender, address(this), amount);
+        stakingToken.transferFrom(msg.sender, address(this), amount); // change pool
 
         if (!existing[msg.sender]) {
             stakers.push(msg.sender);
@@ -111,6 +111,7 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
 
         s.rewardDebt = 0;
         s.claimedAmount += reward;
+
         rewardToken.transfer(msg.sender, reward);
 
         emit Claimed(msg.sender, reward);
@@ -171,7 +172,7 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
 
         uint256 from = s.lastSettledBlock > 0 ? s.lastSettledBlock : startBlock;
         uint256 to = block.number;
-        uint256 reward = _calculateRewardRange(from, to, s.amount);
+        uint256 reward = _calculateRewardRange(from, to, s.amount);`
 
         return s.rewardDebt + reward;
     }
