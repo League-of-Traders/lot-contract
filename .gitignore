@@ -27,7 +27,10 @@ cache
 coverage.json
 
 @openzeppelin
-@pancakeswap
 bsc-library
 
 Flatten*
+
+**/yarn.lock
+**/node_modules
+**/.deps

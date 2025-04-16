@@ -6,14 +6,15 @@
   "private": true,
   "scripts": {
     "compile": "npx hardhat compile",
-    "deploy:testnet": "npx hardhat run --network testnet scripts/deploy.ts",
-    "deploy:mainnet": "npx hardhat run --network opbnb scripts/deploy.ts",
+    "deploy:bsc": "npx hardhat run --network bsc scripts/deploy.ts",
+    "deploy:opbnb": "npx hardhat run --network opbnb scripts/deploy.ts",
+    "deploy:bsc-testnet": "npx hardhat run --network bsc_testnet scripts/deploy.ts",
     "test": "npx hardhat test",
     "test:coverage": "npx hardhat coverage",
     "test:size-contracts": "npx hardhat size-contracts"
   },
   "dependencies": {
-    "bsc-library": "file:../bsc-library"
+    "bsc-library": "../bsc-library"
   },
   "devDependencies": {
     "@openzeppelin/contracts": "^5.3.0"
