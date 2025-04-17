@@ -46,10 +46,6 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.MockBEP20__factory>;
     getContractFactory(
-      name: "CakeToken",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.CakeToken__factory>;
-    getContractFactory(
       name: "LotToken",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.LotToken__factory>;
@@ -99,11 +95,6 @@ declare module "hardhat/types/runtime" {
       signer?: ethers.Signer
     ): Promise<Contracts.MockBEP20>;
     getContractAt(
-      name: "CakeToken",
-      address: string | ethers.Addressable,
-      signer?: ethers.Signer
-    ): Promise<Contracts.CakeToken>;
-    getContractAt(
       name: "LotToken",
       address: string | ethers.Addressable,
       signer?: ethers.Signer
@@ -146,10 +137,6 @@ declare module "hardhat/types/runtime" {
       name: "MockBEP20",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.MockBEP20>;
-    deployContract(
-      name: "CakeToken",
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.CakeToken>;
     deployContract(
       name: "LotToken",
       signerOrOptions?: ethers.Signer | DeployContractOptions
@@ -199,11 +186,6 @@ declare module "hardhat/types/runtime" {
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.MockBEP20>;
-    deployContract(
-      name: "CakeToken",
-      args: any[],
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.CakeToken>;
     deployContract(
       name: "LotToken",
       args: any[],

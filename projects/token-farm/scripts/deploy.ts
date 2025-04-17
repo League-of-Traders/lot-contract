@@ -4,6 +4,7 @@ import { parseUnits } from "ethers";
 import dotenv from "dotenv";
 
 dotenv.config();
+const config = require("../config");
 const currentNetwork = network.name;
 
 async function main() {
@@ -16,9 +17,14 @@ async function main() {
   const TOTAL_REWARD_CAP = INITIAL_SUPPLY;
   const START_TIME = Math.floor(Date.now() / 1000); // now in seconds
 
-  const MockBEP20 = await ethers.getContractFactory("MockBEP20");
-  const rewardToken = await MockBEP20.deploy("Test League of Traders", "tLOT", INITIAL_SUPPLY);
-
+  let rewardToken;
+  if (currentNetwork == "bsc_testnet") {
+    console.log(config);
+    rewardToken = await ethers.getContractAt("MockBEP20", config.default.rewardTokenAddress[currentNetwork]);
+  } else {
+    const MockBEP20 = await ethers.getContractFactory("MockBEP20");
+    rewardToken = await MockBEP20.deploy("Test League of Traders", "tLOT", INITIAL_SUPPLY);
+  }
   await rewardToken.waitForDeployment();
   console.log("Token deployed to:", await rewardToken.getAddress());
 

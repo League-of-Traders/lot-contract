@@ -28,18 +28,18 @@ export interface TimeBasedStakingInterface extends Interface {
     nameOrSignature:
       | "BLOCKS_PER_DAY"
       | "BLOCKS_PER_YEAR"
+      | "PRECISION_FACTOR"
+      | "accRewardPerShare"
       | "claim"
-      | "existing"
-      | "getAPY"
       | "getPerBlockReward"
-      | "getStakers"
+      | "getYearlyAllocation"
+      | "lastRewardBlock"
       | "owner"
       | "pendingReward"
       | "renounceOwnership"
       | "rewardToken"
-      | "settleReward"
+      | "settle"
       | "stake"
-      | "stakers"
       | "stakes"
       | "stakingToken"
       | "startBlock"
@@ -53,7 +53,6 @@ export interface TimeBasedStakingInterface extends Interface {
     nameOrSignatureOrTopic:
       | "Claimed"
       | "OwnershipTransferred"
-      | "Settled"
       | "Staked"
       | "Withdrawn"
   ): EventFragment;
@@ -66,18 +65,25 @@ export interface TimeBasedStakingInterface extends Interface {
     functionFragment: "BLOCKS_PER_YEAR",
     values?: undefined
   ): string;
-  encodeFunctionData(functionFragment: "claim", values?: undefined): string;
   encodeFunctionData(
-    functionFragment: "existing",
-    values: [AddressLike]
+    functionFragment: "PRECISION_FACTOR",
+    values?: undefined
   ): string;
-  encodeFunctionData(functionFragment: "getAPY", values?: undefined): string;
+  encodeFunctionData(
+    functionFragment: "accRewardPerShare",
+    values?: undefined
+  ): string;
+  encodeFunctionData(functionFragment: "claim", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "getPerBlockReward",
     values: [BigNumberish]
   ): string;
   encodeFunctionData(
-    functionFragment: "getStakers",
+    functionFragment: "getYearlyAllocation",
+    values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "lastRewardBlock",
     values?: undefined
   ): string;
   encodeFunctionData(functionFragment: "owner", values?: undefined): string;
@@ -93,17 +99,10 @@ export interface TimeBasedStakingInterface extends Interface {
     functionFragment: "rewardToken",
     values?: undefined
   ): string;
-  encodeFunctionData(
-    functionFragment: "settleReward",
-    values: [AddressLike]
-  ): string;
+  encodeFunctionData(functionFragment: "settle", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "stake",
     values: [BigNumberish, BigNumberish]
-  ): string;
-  encodeFunctionData(
-    functionFragment: "stakers",
-    values: [BigNumberish]
   ): string;
   encodeFunctionData(functionFragment: "stakes", values: [AddressLike]): string;
   encodeFunctionData(
@@ -139,14 +138,27 @@ export interface TimeBasedStakingInterface extends Interface {
     functionFragment: "BLOCKS_PER_YEAR",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(
+    functionFragment: "PRECISION_FACTOR",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "accRewardPerShare",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(functionFragment: "claim", data: BytesLike): Result;
-  decodeFunctionResult(functionFragment: "existing", data: BytesLike): Result;
-  decodeFunctionResult(functionFragment: "getAPY", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "getPerBlockReward",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(functionFragment: "getStakers", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "getYearlyAllocation",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "lastRewardBlock",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "pendingReward",
@@ -160,12 +172,8 @@ export interface TimeBasedStakingInterface extends Interface {
     functionFragment: "rewardToken",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(
-    functionFragment: "settleReward",
-    data: BytesLike
-  ): Result;
+  decodeFunctionResult(functionFragment: "settle", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "stake", data: BytesLike): Result;
-  decodeFunctionResult(functionFragment: "stakers", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "stakes", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "stakingToken",
@@ -188,11 +196,11 @@ export interface TimeBasedStakingInterface extends Interface {
 }
 
 export namespace ClaimedEvent {
-  export type InputTuple = [user: AddressLike, reward: BigNumberish];
-  export type OutputTuple = [user: string, reward: bigint];
+  export type InputTuple = [user: AddressLike, amount: BigNumberish];
+  export type OutputTuple = [user: string, amount: bigint];
   export interface OutputObject {
     user: string;
-    reward: bigint;
+    amount: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -213,30 +221,12 @@ export namespace OwnershipTransferredEvent {
   export type LogDescription = TypedLogDescription<Event>;
 }
 
-export namespace SettledEvent {
+export namespace StakedEvent {
   export type InputTuple = [user: AddressLike, amount: BigNumberish];
   export type OutputTuple = [user: string, amount: bigint];
   export interface OutputObject {
     user: string;
     amount: bigint;
-  }
-  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
-  export type Filter = TypedDeferredTopicFilter<Event>;
-  export type Log = TypedEventLog<Event>;
-  export type LogDescription = TypedLogDescription<Event>;
-}
-
-export namespace StakedEvent {
-  export type InputTuple = [
-    user: AddressLike,
-    amount: BigNumberish,
-    lockupDays: BigNumberish
-  ];
-  export type OutputTuple = [user: string, amount: bigint, lockupDays: bigint];
-  export interface OutputObject {
-    user: string;
-    amount: bigint;
-    lockupDays: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -304,11 +294,11 @@ export interface TimeBasedStaking extends BaseContract {
 
   BLOCKS_PER_YEAR: TypedContractMethod<[], [bigint], "view">;
 
+  PRECISION_FACTOR: TypedContractMethod<[], [bigint], "view">;
+
+  accRewardPerShare: TypedContractMethod<[], [bigint], "view">;
+
   claim: TypedContractMethod<[], [void], "nonpayable">;
-
-  existing: TypedContractMethod<[arg0: AddressLike], [boolean], "view">;
-
-  getAPY: TypedContractMethod<[], [bigint], "view">;
 
   getPerBlockReward: TypedContractMethod<
     [blockNum: BigNumberish],
@@ -316,7 +306,13 @@ export interface TimeBasedStaking extends BaseContract {
     "view"
   >;
 
-  getStakers: TypedContractMethod<[], [string[]], "view">;
+  getYearlyAllocation: TypedContractMethod<
+    [year: BigNumberish],
+    [bigint],
+    "view"
+  >;
+
+  lastRewardBlock: TypedContractMethod<[], [bigint], "view">;
 
   owner: TypedContractMethod<[], [string], "view">;
 
@@ -326,7 +322,7 @@ export interface TimeBasedStaking extends BaseContract {
 
   rewardToken: TypedContractMethod<[], [string], "view">;
 
-  settleReward: TypedContractMethod<[user: AddressLike], [void], "nonpayable">;
+  settle: TypedContractMethod<[], [void], "nonpayable">;
 
   stake: TypedContractMethod<
     [amount: BigNumberish, lockupDays: BigNumberish],
@@ -334,16 +330,13 @@ export interface TimeBasedStaking extends BaseContract {
     "nonpayable"
   >;
 
-  stakers: TypedContractMethod<[arg0: BigNumberish], [string], "view">;
-
   stakes: TypedContractMethod<
     [arg0: AddressLike],
     [
-      [bigint, bigint, bigint, bigint, bigint] & {
+      [bigint, bigint, bigint, bigint] & {
         amount: bigint;
         rewardDebt: bigint;
-        lastSettledBlock: bigint;
-        claimedAmount: bigint;
+        claimed: bigint;
         lockupEndBlock: bigint;
       }
     ],
@@ -377,20 +370,23 @@ export interface TimeBasedStaking extends BaseContract {
     nameOrSignature: "BLOCKS_PER_YEAR"
   ): TypedContractMethod<[], [bigint], "view">;
   getFunction(
+    nameOrSignature: "PRECISION_FACTOR"
+  ): TypedContractMethod<[], [bigint], "view">;
+  getFunction(
+    nameOrSignature: "accRewardPerShare"
+  ): TypedContractMethod<[], [bigint], "view">;
+  getFunction(
     nameOrSignature: "claim"
   ): TypedContractMethod<[], [void], "nonpayable">;
-  getFunction(
-    nameOrSignature: "existing"
-  ): TypedContractMethod<[arg0: AddressLike], [boolean], "view">;
-  getFunction(
-    nameOrSignature: "getAPY"
-  ): TypedContractMethod<[], [bigint], "view">;
   getFunction(
     nameOrSignature: "getPerBlockReward"
   ): TypedContractMethod<[blockNum: BigNumberish], [bigint], "view">;
   getFunction(
-    nameOrSignature: "getStakers"
-  ): TypedContractMethod<[], [string[]], "view">;
+    nameOrSignature: "getYearlyAllocation"
+  ): TypedContractMethod<[year: BigNumberish], [bigint], "view">;
+  getFunction(
+    nameOrSignature: "lastRewardBlock"
+  ): TypedContractMethod<[], [bigint], "view">;
   getFunction(
     nameOrSignature: "owner"
   ): TypedContractMethod<[], [string], "view">;
@@ -404,8 +400,8 @@ export interface TimeBasedStaking extends BaseContract {
     nameOrSignature: "rewardToken"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
-    nameOrSignature: "settleReward"
-  ): TypedContractMethod<[user: AddressLike], [void], "nonpayable">;
+    nameOrSignature: "settle"
+  ): TypedContractMethod<[], [void], "nonpayable">;
   getFunction(
     nameOrSignature: "stake"
   ): TypedContractMethod<
@@ -414,18 +410,14 @@ export interface TimeBasedStaking extends BaseContract {
     "nonpayable"
   >;
   getFunction(
-    nameOrSignature: "stakers"
-  ): TypedContractMethod<[arg0: BigNumberish], [string], "view">;
-  getFunction(
     nameOrSignature: "stakes"
   ): TypedContractMethod<
     [arg0: AddressLike],
     [
-      [bigint, bigint, bigint, bigint, bigint] & {
+      [bigint, bigint, bigint, bigint] & {
         amount: bigint;
         rewardDebt: bigint;
-        lastSettledBlock: bigint;
-        claimedAmount: bigint;
+        claimed: bigint;
         lockupEndBlock: bigint;
       }
     ],
@@ -465,13 +457,6 @@ export interface TimeBasedStaking extends BaseContract {
     OwnershipTransferredEvent.OutputObject
   >;
   getEvent(
-    key: "Settled"
-  ): TypedContractEvent<
-    SettledEvent.InputTuple,
-    SettledEvent.OutputTuple,
-    SettledEvent.OutputObject
-  >;
-  getEvent(
     key: "Staked"
   ): TypedContractEvent<
     StakedEvent.InputTuple,
@@ -509,18 +494,7 @@ export interface TimeBasedStaking extends BaseContract {
       OwnershipTransferredEvent.OutputObject
     >;
 
-    "Settled(address,uint256)": TypedContractEvent<
-      SettledEvent.InputTuple,
-      SettledEvent.OutputTuple,
-      SettledEvent.OutputObject
-    >;
-    Settled: TypedContractEvent<
-      SettledEvent.InputTuple,
-      SettledEvent.OutputTuple,
-      SettledEvent.OutputObject
-    >;
-
-    "Staked(address,uint256,uint256)": TypedContractEvent<
+    "Staked(address,uint256)": TypedContractEvent<
       StakedEvent.InputTuple,
       StakedEvent.OutputTuple,
       StakedEvent.OutputObject
