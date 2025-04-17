@@ -34,3 +34,5 @@ Flatten*
 **/yarn.lock
 **/node_modules
 **/.deps
+
+**/typechain-types

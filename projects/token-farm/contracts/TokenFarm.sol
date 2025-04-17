@@ -70,6 +70,13 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         uint256 yearly = getYearlyAllocation(year);
         return yearly / BLOCKS_PER_YEAR;
     }
+    
+    function getAPY() external view returns (uint256) {
+         uint256 rewardPerBlock = getPerBlockReward(block.number);
+         if (rewardPerBlock == 0 || totalStaked == 0) return 0;
+ 
+         return (rewardPerBlock * BLOCKS_PER_YEAR * 1e18) / totalStaked;
+     }
 
     function settle() public {
         if (block.number <= lastRewardBlock || totalStaked == 0) return;
@@ -150,7 +157,7 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         s.amount -= amount;
         s.rewardDebt = (s.amount * accRewardPerShare) / PRECISION_FACTOR;
         totalStaked -= amount;
-        
+
         stakingToken.transfer(msg.sender, amount);
 
         emit Withdrawn(msg.sender, amount);
@@ -172,7 +179,7 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
 
     function pendingReward(address user) external view returns (uint256) {
         StakeInfo storage s = stakes[user];
-        if (s.amount == 0) return 0;
+        if (s.amount == 0 || totalStaked == 0) return 0;
 
         uint256 reward = _calculateTotalReward(lastRewardBlock, block.number);
         uint256 acc = accRewardPerShare + (reward * PRECISION_FACTOR) / totalStaked;
