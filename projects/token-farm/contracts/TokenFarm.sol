@@ -51,32 +51,30 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         PRECISION_FACTOR = uint256(10**(uint256(30) - decimalsRewardToken));
 
     }
-
-    function getYearlyAllocation(uint256 year) public view returns (uint256) {
-        if (year == 0) return totalRewardCap / 3;
-
-        uint256 remaining = totalRewardCap - (totalRewardCap / 3);
-        for (uint256 i = 1; i < year; i++) {
-            remaining = (remaining * 1) / 3;
-        }
-        return (remaining * 2) / 3;
-    }
-
-    function getPerBlockReward(uint256 blockNum) public view returns (uint256) {
-        if (blockNum <= startBlock || totalRewardCap == 0) return 0;
-
-        uint256 blocksSinceStart = blockNum - startBlock;
-        uint256 year = blocksSinceStart / BLOCKS_PER_YEAR;
-        uint256 yearly = getYearlyAllocation(year);
-        return yearly / BLOCKS_PER_YEAR;
-    }
     
     function getAPY() external view returns (uint256) {
-         uint256 rewardPerBlock = getPerBlockReward(block.number);
+         uint256 rewardPerBlock = _calculateTotalReward(block.number, block.number+BLOCKS_PER_YEAR);
          if (rewardPerBlock == 0 || totalStaked == 0) return 0;
  
-         return (rewardPerBlock * BLOCKS_PER_YEAR * 1e18) / totalStaked;
+         return (rewardPerBlock * PRECISION_FACTOR) / totalStaked;
      }
+
+    function estimateReward(uint256 amount, uint256 lockupDays) external view returns (uint256 ) {
+        uint256 nowReward = (amount * accRewardPerShare) / PRECISION_FACTOR;
+        uint256 lockupBlocks = lockupDays * BLOCKS_PER_DAY;
+        uint256 projectedEnd = block.number + lockupBlocks;
+
+        uint256 projectedReward = _calculateTotalReward(block.number, projectedEnd);
+
+        uint256 newTotalStaked = totalStaked + amount;
+        if (newTotalStaked == 0) return 0; 
+
+        uint256 projectedAccRewardPerShare = accRewardPerShare + (projectedReward * PRECISION_FACTOR) / newTotalStaked;
+
+        uint256 futureReward = (amount * projectedAccRewardPerShare) / PRECISION_FACTOR;
+
+        return futureReward - nowReward;
+    }
 
     function settle() public {
         if (block.number <= lastRewardBlock || totalStaked == 0) return;
