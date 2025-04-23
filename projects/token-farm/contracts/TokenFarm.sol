@@ -59,15 +59,18 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
 
         uint256 reward = _calculateTotalReward(lastRewardBlock, block.number);
         accRewardPerShare += (reward * PRECISION_FACTOR) / totalWeightedStaked;
+
         lastRewardBlock = block.number;
     }
 
     function stake(uint256 amount, uint256 lockupDays) external nonReentrant {
-        require(amount > 0, "Cannot stake 0");
         require(lockupDays <= MAX_LOCK_DAYS, "Too long");
 
         _updatePool();
         StakeInfo storage s = stakes[msg.sender];
+
+        require(amount > 0 || s.amount > 0, "Cannot init stake 0");
+        require(s.lockupEndBlock <=  block.number + (lockupDays * BLOCKS_PER_DAY), "Lock up should be longer then initial lockup period");
 
         if (s.weight > 0) {
             uint256 pending = (s.weight * accRewardPerShare) / PRECISION_FACTOR - s.rewardDebt;
@@ -79,9 +82,11 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         }
 
         if (s.amount == 0) {
-            accumulatedLockupDays += lockupDays;
             stakerCount += 1;
+        } else {
+            accumulatedLockupDays -= (s.lockupEndBlock - block.number) /BLOCKS_PER_DAY;
         }
+        accumulatedLockupDays += lockupDays;
 
 
         uint256 weight = (amount * getLockupWeight(lockupDays)) / PRECISION_FACTOR;
@@ -190,7 +195,6 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
 
     function getAvgLockupYears() external view returns (uint256) {
         if (stakerCount == 0) return 0;
-        return accumulatedLockupDays / stakerCount / 365;
+        return (accumulatedLockupDays * 1e18) / (stakerCount * 365);
     }
-
 }
