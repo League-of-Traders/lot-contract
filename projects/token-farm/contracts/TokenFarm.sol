@@ -11,8 +11,8 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
 
     uint256 public immutable startBlock;
     uint256 public immutable totalRewardCap;
-    uint256 public constant BLOCKS_PER_YEAR = 365 days;
-    uint256 public constant BLOCKS_PER_DAY = 1 days;
+    uint256 public constant TIMESTAMP_PER_YEAR = 365 days;
+    uint256 public constant TIMESTAMP_PER_DAY = 1 days;
     uint256 public constant MAX_LOCK_DAYS = 1460; // 4 years
     uint256 public constant PRECISION_FACTOR = 1e18;
 
@@ -45,8 +45,8 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         stakingToken = _stakingToken;
         rewardToken = _rewardToken;
         totalRewardCap = _totalRewardCap;
-        startBlock = block.number;
-        lastRewardBlock = block.number;
+        startBlock = block.timestamp;
+        lastRewardBlock = block.timestamp;
     }
 
     function getLockupWeight(uint256 lockupDays) public pure returns (uint256) {
@@ -55,12 +55,12 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
     }
 
     function _updatePool() internal {
-        if (block.number <= lastRewardBlock || totalWeightedStaked == 0) return;
+        if (block.timestamp <= lastRewardBlock || totalWeightedStaked == 0) return;
 
-        uint256 reward = _calculateTotalReward(lastRewardBlock, block.number);
+        uint256 reward = _calculateTotalReward(lastRewardBlock, block.timestamp);
         accRewardPerShare += (reward * PRECISION_FACTOR) / totalWeightedStaked;
 
-        lastRewardBlock = block.number;
+        lastRewardBlock = block.timestamp;
     }
 
     function stake(uint256 amount, uint256 lockupDays) external nonReentrant {
@@ -70,7 +70,7 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         StakeInfo storage s = stakes[msg.sender];
 
         require(amount > 0 || s.amount > 0, "Cannot init stake 0");
-        require(s.lockupEndBlock <=  block.number + (lockupDays * BLOCKS_PER_DAY), "Lock up should be longer then initial lockup period");
+        require(s.lockupEndBlock <=  block.timestamp + (lockupDays * TIMESTAMP_PER_DAY), "Lock up should be longer then initial lockup period");
 
         if (s.weight > 0) {
             uint256 pending = (s.weight * accRewardPerShare) / PRECISION_FACTOR - s.rewardDebt;
@@ -84,7 +84,7 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         if (s.amount == 0) {
             stakerCount += 1;
         } else {
-            accumulatedLockupDays -= (s.lockupEndBlock - block.number) /BLOCKS_PER_DAY;
+            accumulatedLockupDays -= (s.lockupEndBlock - block.timestamp) /TIMESTAMP_PER_DAY;
         }
         accumulatedLockupDays += lockupDays;
 
@@ -93,7 +93,7 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         s.amount += amount;
         s.weight += weight;
         s.rewardDebt = (s.weight * accRewardPerShare) / PRECISION_FACTOR;
-        s.lockupEndBlock = block.number + (lockupDays * BLOCKS_PER_DAY);
+        s.lockupEndBlock = block.timestamp + (lockupDays * TIMESTAMP_PER_DAY);
         totalWeightedStaked += weight;
         totalStaked += amount;
 
@@ -103,7 +103,7 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
 
     function withdraw(uint256 amount) external nonReentrant {
         StakeInfo storage s = stakes[msg.sender];
-        require(block.number >= s.lockupEndBlock, "Locked");
+        require(block.timestamp >= s.lockupEndBlock, "Locked");
         require(amount > 0 && s.amount >= amount, "Invalid");
 
         _updatePool();
@@ -143,14 +143,14 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         StakeInfo storage s = stakes[user];
         if (s.weight == 0 || totalWeightedStaked == 0) return 0;
 
-        uint256 reward = _calculateTotalReward(lastRewardBlock, block.number);
+        uint256 reward = _calculateTotalReward(lastRewardBlock, block.timestamp);
         uint256 acc = accRewardPerShare + (reward * PRECISION_FACTOR) / totalWeightedStaked;
         return (s.weight * acc) / PRECISION_FACTOR - s.rewardDebt;
     }
 
     function estimateReward(uint256 amount, uint256 lockupDays) external view returns (uint256) {
-        uint256 lockupBlocks = lockupDays * BLOCKS_PER_DAY;
-        uint256 projectedReward = _calculateTotalReward(block.number, block.number + lockupBlocks);
+        uint256 lockupTIMESTAMP = lockupDays * TIMESTAMP_PER_DAY;
+        uint256 projectedReward = _calculateTotalReward(block.timestamp, block.timestamp + lockupTIMESTAMP);
         uint256 weight = (amount * getLockupWeight(lockupDays)) / PRECISION_FACTOR;
         uint256 newTotalWeighted = totalWeightedStaked + weight;
         if (newTotalWeighted == 0) return 0;
@@ -162,14 +162,14 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
     function _calculateTotalReward(uint256 from, uint256 to) internal view returns (uint256) {
         if (from >= to) return 0;
         uint256 sum = 0;
-        uint256 remaining = totalRewardCap;
+        uint256 remaining = totalRewardCap * PRECISION_FACTOR;
 
-        for (uint256 i = 0; i < 1000; i++) {
-            uint256 yearStart = startBlock + i * BLOCKS_PER_YEAR;
-            uint256 yearEnd = yearStart + BLOCKS_PER_YEAR;
+        for (uint256 i = 0; i < 500; i++) {
+            uint256 yearStart = startBlock + i * TIMESTAMP_PER_YEAR;
+            uint256 yearEnd = yearStart + TIMESTAMP_PER_YEAR;
 
             uint256 yearlyAllocation = (i == 0)
-                ? totalRewardCap / 3
+                ? remaining / 3
                 : (remaining * 2) / 3;
             remaining -= yearlyAllocation;
 
@@ -178,18 +178,18 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
 
             uint256 overlapStart = from > yearStart ? from : yearStart;
             uint256 overlapEnd = to < yearEnd ? to : yearEnd;
-            uint256 blocks = overlapEnd - overlapStart;
+            uint256 TIMESTAMP = overlapEnd - overlapStart;
 
-            sum += blocks * (yearlyAllocation / BLOCKS_PER_YEAR);
+            sum += TIMESTAMP * (yearlyAllocation / TIMESTAMP_PER_YEAR);
         }
 
-        return sum;
+        return sum / PRECISION_FACTOR;
     }
 
     function getAPY() external view returns (uint256) {
         if (totalWeightedStaked == 0) return 0;
 
-        uint256 reward = _calculateTotalReward(block.number, block.number + BLOCKS_PER_YEAR);
+        uint256 reward = _calculateTotalReward(block.timestamp, block.timestamp + TIMESTAMP_PER_YEAR);
         return reward / totalWeightedStaked;
     }
 
