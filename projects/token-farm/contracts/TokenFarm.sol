@@ -11,8 +11,8 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
 
     uint256 public immutable startBlock;
     uint256 public immutable totalRewardCap;
-    uint256 public constant BLOCKS_PER_YEAR = 10512000;
-    uint256 public constant BLOCKS_PER_DAY = 28800;
+    uint256 public constant BLOCKS_PER_YEAR = 365 days;
+    uint256 public constant BLOCKS_PER_DAY = 1 days;
     uint256 public constant MAX_LOCK_DAYS = 1460; // 4 years
     uint256 public constant PRECISION_FACTOR = 1e18;
 

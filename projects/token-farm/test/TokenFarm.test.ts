@@ -53,8 +53,9 @@ describe("TimeBasedStaking - Advanced", function () {
   it("should allow re-staking after full withdrawal", async function () {
     await staking.connect(user).stake(stakeAmount, lockupDays);
 
-    const move = lockupDays * 28800;
-    await ethers.provider.send("hardhat_mine", [`0x${move.toString(16)}`]);
+    const lockupSeconds = lockupDays * 24 * 60 * 60;
+    await ethers.provider.send("evm_increaseTime", [lockupSeconds]);
+    await ethers.provider.send("evm_mine");
 
     await staking.connect(user).withdraw(stakeAmount);
 
@@ -69,8 +70,9 @@ describe("TimeBasedStaking - Advanced", function () {
     const initialStakerCount = await staking.stakerCount();
     const initialLockupDays = await staking.accumulatedLockupDays();
 
-    const move = lockupDays * 28800;
-    await ethers.provider.send("hardhat_mine", [`0x${move.toString(16)}`]);
+    const lockupSeconds = lockupDays * 24 * 60 * 60;
+    await ethers.provider.send("evm_increaseTime", [lockupSeconds]);
+    await ethers.provider.send("evm_mine");
 
     await staking.connect(user).withdraw(stakeAmount);
 
@@ -106,8 +108,9 @@ describe("TimeBasedStaking - Advanced", function () {
   it("should revert withdraw with zero amount", async function () {
     await staking.connect(user).stake(stakeAmount, lockupDays);
 
-    const move = lockupDays * 28800;
-    await ethers.provider.send("hardhat_mine", [`0x${move.toString(16)}`]);
+    const lockupSeconds = lockupDays * 24 * 60 * 60;
+    await ethers.provider.send("evm_increaseTime", [lockupSeconds]);
+    await ethers.provider.send("evm_mine");
 
     await expect(staking.connect(user).withdraw(0)).to.be.revertedWith("Invalid"); // ✅ 0 amount withdraw 거부
   });
