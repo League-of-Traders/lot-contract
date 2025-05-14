@@ -9,7 +9,7 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
     IBEP20 public stakingToken;
     IBEP20 public rewardToken;
 
-    uint256 public immutable startBlock;
+    uint256 public immutable startTimestamp;
     uint256 public immutable totalRewardCap;
     uint256 public constant TIMESTAMP_PER_YEAR = 365 days;
     uint256 public constant TIMESTAMP_PER_DAY = 1 days;
@@ -19,7 +19,7 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
     uint256 public accumulatedLockupDays;
     uint256 public stakerCount;
     uint256 public accRewardPerShare;
-    uint256 public lastRewardBlock;
+    uint256 public lastRewardTimestamp;
     uint256 public totalStaked;
     uint256 public totalWeightedStaked;
 
@@ -36,6 +36,16 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
     event Staked(address indexed user, uint256 amount, uint256 lockupDays);
     event Withdrawn(address indexed user, uint256 amount);
     event Claimed(address indexed user, uint256 amount);
+    event RewardStep(
+        uint256 yearIndex,
+        uint256 yearStart,
+        uint256 yearEnd,
+        uint256 overlapStart,
+        uint256 overlapEnd,
+        uint256 duration,
+        uint256 yearlyAllocation,
+        uint256 added
+    );
 
     constructor(
         IBEP20 _stakingToken,
@@ -45,8 +55,8 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         stakingToken = _stakingToken;
         rewardToken = _rewardToken;
         totalRewardCap = _totalRewardCap;
-        startBlock = block.timestamp;
-        lastRewardBlock = block.timestamp;
+        startTimestamp = block.timestamp;
+        lastRewardTimestamp = block.timestamp;
     }
 
     function getLockupWeight(uint256 lockupDays) public pure returns (uint256) {
@@ -55,12 +65,12 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
     }
 
     function _updatePool() internal {
-        if (block.timestamp <= lastRewardBlock || totalWeightedStaked == 0) return;
+        if (block.timestamp <= lastRewardTimestamp || totalWeightedStaked == 0) return;
 
-        uint256 reward = _calculateTotalReward(lastRewardBlock, block.timestamp);
+        uint256 reward = _calculateTotalReward(lastRewardTimestamp, block.timestamp);
         accRewardPerShare += (reward * PRECISION_FACTOR) / totalWeightedStaked;
 
-        lastRewardBlock = block.timestamp;
+        lastRewardTimestamp = block.timestamp;
     }
 
     function stake(uint256 amount, uint256 lockupDays) external nonReentrant {
@@ -143,10 +153,12 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         StakeInfo storage s = stakes[user];
         if (s.weight == 0 || totalWeightedStaked == 0) return 0;
 
-        uint256 reward = _calculateTotalReward(lastRewardBlock, block.timestamp);
-        uint256 acc = accRewardPerShare + (reward * PRECISION_FACTOR) / totalWeightedStaked;
-        return (s.weight * acc) / PRECISION_FACTOR - s.rewardDebt;
+        uint256 reward = _calculateTotalReward(lastRewardTimestamp, block.timestamp);
+        uint256 updatedAcc = accRewardPerShare + (reward * PRECISION_FACTOR) / totalWeightedStaked;
+
+        return (s.weight * updatedAcc) / PRECISION_FACTOR - s.rewardDebt;
     }
+    
 
     function estimateReward(uint256 amount, uint256 lockupDays) external view returns (uint256) {
         uint256 lockupTIMESTAMP = lockupDays * TIMESTAMP_PER_DAY;
@@ -165,12 +177,10 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         uint256 remaining = totalRewardCap * PRECISION_FACTOR;
 
         for (uint256 i = 0; i < 500; i++) {
-            uint256 yearStart = startBlock + i * TIMESTAMP_PER_YEAR;
+            uint256 yearStart = startTimestamp + (i * TIMESTAMP_PER_YEAR);
             uint256 yearEnd = yearStart + TIMESTAMP_PER_YEAR;
 
-            uint256 yearlyAllocation = (i == 0)
-                ? remaining / 3
-                : (remaining * 2) / 3;
+            uint256 yearlyAllocation = remaining / 3;
             remaining -= yearlyAllocation;
 
             if (from >= yearEnd) continue;
@@ -178,9 +188,9 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
 
             uint256 overlapStart = from > yearStart ? from : yearStart;
             uint256 overlapEnd = to < yearEnd ? to : yearEnd;
-            uint256 TIMESTAMP = overlapEnd - overlapStart;
+            uint256 duration = overlapEnd - overlapStart;
 
-            sum += TIMESTAMP * (yearlyAllocation / TIMESTAMP_PER_YEAR);
+            sum += (duration * yearlyAllocation) / TIMESTAMP_PER_YEAR;
         }
 
         return sum / PRECISION_FACTOR;
@@ -196,5 +206,13 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
     function getAvgLockupYears() external view returns (uint256) {
         if (stakerCount == 0) return 0;
         return (accumulatedLockupDays * 1e18) / (stakerCount * 365);
+    }
+
+    function testCalculateTotalReward(uint256 from, uint256 to) external view returns (uint256) {
+        return _calculateTotalReward(from, to);
+    }
+
+    function getAccRewardPerShareNow() external view returns (uint256) {
+        return accRewardPerShare;
     }
 }

@@ -3,7 +3,6 @@ pragma solidity ^0.8.0;
 
 import "./IBEP20.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 /**
  * @title SafeBEP20
@@ -15,7 +14,6 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
  * which allows you to call the safe operations as `token.safeTransfer(...)`, etc.
  */
 library SafeBEP20 {
-  using SafeMath for uint256;
   using Address for address;
 
   function safeTransfer(
@@ -72,7 +70,7 @@ library SafeBEP20 {
     address spender,
     uint256 value
   ) internal {
-    uint256 newAllowance = token.allowance(address(this), spender).add(value);
+    uint256 newAllowance = token.allowance(address(this), spender) + (value);
     _callOptionalReturn(
       token,
       abi.encodeWithSelector(token.approve.selector, spender, newAllowance)
@@ -85,10 +83,7 @@ library SafeBEP20 {
     uint256 value
   ) internal {
     uint256 newAllowance =
-      token.allowance(address(this), spender).sub(
-        value,
-        "SafeBEP20: decreased allowance below zero"
-      );
+      token.allowance(address(this), spender) - (value);
     _callOptionalReturn(
       token,
       abi.encodeWithSelector(token.approve.selector, spender, newAllowance)
