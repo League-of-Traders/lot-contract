@@ -208,10 +208,6 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         return (accumulatedLockupDays * 1e18) / (stakerCount * 365);
     }
 
-    function testCalculateTotalReward(uint256 from, uint256 to) external view returns (uint256) {
-        return _calculateTotalReward(from, to);
-    }
-
     function getAccRewardPerShareNow() external view returns (uint256) {
         return accRewardPerShare;
     }
