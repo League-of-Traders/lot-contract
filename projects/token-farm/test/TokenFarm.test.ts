@@ -239,7 +239,8 @@ describe("TimeBasedStaking - Full Test Suite", () => {
       const totalReward = toBigInt(await staking.testCalculateTotalReward(firstClaimTime, secondClaimTime));
       const weight = toBigInt((await staking.stakes(user.address)).weight);
       const totalWeight = toBigInt(await staking.totalWeightedStaked());
-      const expectedUserReward = (totalReward * weight) / totalWeight;
+      const rewardPerWeight = (totalReward * PRECISION) / totalWeight;
+      const expectedUserReward = (rewardPerWeight * weight) / PRECISION;
 
       expect(diff).to.be.equal(expectedUserReward);
     });
