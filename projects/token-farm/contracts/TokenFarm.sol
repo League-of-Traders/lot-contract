@@ -5,6 +5,20 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "bsc-library/contracts/IBEP20.sol";
 
+/**
+ * @title TimeBasedStaking
+ * @notice This contract implements a long-term staking system inspired by veCRV mechanics.
+ *
+ * Key design principles:
+ * - Rewards are front-loaded using a geometric decay: 1/3 of remaining is distributed each year.
+ * - Stake weight is proportional to both amount and lockup duration (ve-style).
+ * - Early and long-term stakers are heavily incentivized over short-term ones.
+ *
+ * Advantages:
+ * - Predictable long-term reward schedule.
+ * - Fairness: No advantage for frequent compounders.
+ * - Gas efficiency: Uses accRewardPerShare for scalable distribution.
+ */
 contract TimeBasedStaking is Ownable, ReentrancyGuard {
     IBEP20 public stakingToken;
     IBEP20 public rewardToken;
@@ -12,7 +26,8 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
     uint256 public immutable startTimestamp;
     uint256 public constant TIMESTAMP_PER_YEAR = 365 days;
     uint256 public constant TIMESTAMP_PER_DAY = 1 days;
-    uint256 public constant MAX_LOCK_DAYS = 1460; // 4 years
+    uint256 public constant MIN_LOCKUP_DAYS = 7;
+    uint256 public constant MAX_LOCKUP_DAYS = 1460; 
     uint256 public constant PRECISION_FACTOR = 1e18;
 
     uint256 public totalRewardCap;
@@ -24,17 +39,16 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
     uint256 public totalWeightedStaked;
 
     struct StakeInfo {
-        uint256 amount;
-        uint256 weight;
-        uint256 rewardDebt;
-        uint256 claimed;
-        uint256 lockupEndBlock;
+        uint256 amount;          // User's staked amount
+        uint256 weight;          // Staked amount weighted by lockup
+        uint256 rewardDebt;      // Reward debt for reward accounting
+        uint256 claimed;         // Total rewards claimed
+        uint256 lockupEndBlock;  // Timestamp when lockup ends
     }
 
     mapping(address => StakeInfo) public stakes;
     mapping(address => bool) public isBanned;
     mapping(uint256 => uint256) public rewardPerYear;
-
 
     event Banned(address indexed user);
     event Unbanned(address indexed user);
@@ -54,11 +68,29 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         lastRewardTimestamp = block.timestamp;
     }
 
+    /**
+     * @dev Returns the ve-style staking weight for a given lockup duration.
+     *      The weight is linearly proportional to the number of lockup days, scaled by MAX_LOCKUP_DAYS.
+     *      This follows the "voting escrow" (ve) model, where longer lockups give more influence
+     *      (or in this case, more reward share).
+     *
+     *      For example:
+     *        - 1460 days (4 years) lockup gives full weight (1.0 * amount)
+     *        - 365 days lockup gives 25% weight (0.25 * amount)
+     *
+     *      This design encourages longer commitments, rewarding long-term stakers more.
+     *
+     * @param lockupDays Number of days the stake will be locked
+     * @return Lockup weight scaled by 1e18
+     */
     function getLockupWeight(uint256 lockupDays) public pure returns (uint256) {
-        require(lockupDays <= MAX_LOCK_DAYS, "Exceeds max lock");
-        return (lockupDays * PRECISION_FACTOR) / MAX_LOCK_DAYS;
+        require(lockupDays <= MAX_LOCKUP_DAYS, "Exceeds max lock");
+        return (lockupDays * PRECISION_FACTOR) / MAX_LOCKUP_DAYS;
     }
 
+    /**
+     * @dev One-time reward initializer using geometric decay.
+     */
     function setReward(uint256 amount) external onlyOwner {
         require(amount > 0, "Invalid amount");
         require(totalRewardCap == 0, "Already set");
@@ -73,6 +105,9 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         emit RewardAdded(fromYear, amount);
     }
 
+    /**
+     * @dev Adds more rewards starting from next year.
+     */
     function addReward(uint256 amount) external onlyOwner {
         require(amount > 0, "Invalid amount");
 
@@ -93,6 +128,20 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
     }
 
 
+    /**
+     * @dev Distributes a reward amount across future years using geometric decay.
+     *      Each year receives 1/3 of the remaining undistributed balance.
+     *      This results in most rewards being allocated early,
+     *      but still sustaining the pool over many years (~80% in first 5 years).
+     *
+     *      Mathematically, this approximates:
+     *        rewardYear[n] = total * (1/3) * (2/3)^n
+     *      which ensures:
+     *        ∑_{n=0}^{∞} rewardYear[n] = total
+     *
+     * @param fromYear Starting year index to begin distribution
+     * @param totalAmount Total reward to be distributed over time
+     */
     function _distributeDecay(uint256 fromYear, uint256 totalAmount) internal {
         uint256 remaining = totalAmount;
 
@@ -103,6 +152,9 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         }
     }
 
+    /**
+     * @dev Updates the accumulated reward per share value.
+     */
     function _updatePool() internal {
         if (block.timestamp <= lastRewardTimestamp || totalWeightedStaked == 0) return;
 
@@ -112,8 +164,12 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         lastRewardTimestamp = block.timestamp;
     }
 
+    /**
+     * @dev Stake tokens with specified lockup duration. Auto-claims pending rewards.
+     */
     function stake(uint256 amount, uint256 lockupDays) external nonReentrant {
-        require(lockupDays <= MAX_LOCK_DAYS, "Too long");
+        require(lockupDays >= MIN_LOCKUP_DAYS, "Lockup too short");
+        require(lockupDays <= MAX_LOCKUP_DAYS, "Lockup too long");
         require(!isBanned[msg.sender], "Banned user");
         require(totalRewardCap != 0, "Reward not set");
 
@@ -121,7 +177,9 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         StakeInfo storage s = stakes[msg.sender];
 
         require(amount > 0 || s.amount > 0, "Cannot init stake 0");
-        require(s.lockupEndBlock <=  block.timestamp + (lockupDays * TIMESTAMP_PER_DAY), "Lock up should be longer then initial lockup period");
+
+        uint256 newLockupEnd = block.timestamp + (lockupDays * TIMESTAMP_PER_DAY);
+        require(s.lockupEndBlock <= newLockupEnd, "Lock up should be longer then initial lockup period");
 
         if (s.weight > 0) {
             uint256 pending = (s.weight * accRewardPerShare) / PRECISION_FACTOR - s.rewardDebt;
@@ -143,15 +201,18 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         uint256 weight = (amount * getLockupWeight(lockupDays)) / PRECISION_FACTOR;
         s.amount += amount;
         s.weight += weight;
-        s.rewardDebt = (s.weight * accRewardPerShare) / PRECISION_FACTOR;
-        s.lockupEndBlock = block.timestamp + (lockupDays * TIMESTAMP_PER_DAY);
         totalWeightedStaked += weight;
+        s.rewardDebt = (s.weight * accRewardPerShare) / PRECISION_FACTOR;
+        s.lockupEndBlock = newLockupEnd;
         totalStaked += amount;
 
         stakingToken.transferFrom(msg.sender, address(this), amount);
         emit Staked(msg.sender, amount, lockupDays);
     }
 
+    /**
+     * @dev Withdraw staked tokens after lockup period. Auto-claims pending rewards.
+     */
     function withdraw(uint256 amount) external nonReentrant {
         StakeInfo storage s = stakes[msg.sender];
         require(block.timestamp >= s.lockupEndBlock, "Locked");
@@ -178,6 +239,9 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         emit Withdrawn(msg.sender, amount);
     }
 
+    /**
+     * @dev Claim pending rewards without withdrawing stake.
+     */
     function claim() external nonReentrant {
         require(totalRewardCap != 0, "Reward not set");
 
@@ -193,6 +257,9 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         emit Claimed(msg.sender, pending);
     }
 
+    /**
+     * @dev View function to calculate pending reward for a user.
+     */
     function pendingReward(address user) external view returns (uint256) {
         StakeInfo storage s = stakes[user];
         if (s.weight == 0 || totalWeightedStaked == 0) return 0;
@@ -203,7 +270,9 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         return (s.weight * updatedAcc) / PRECISION_FACTOR - s.rewardDebt;
     }
     
-
+    /**
+     * @dev Estimate future reward based on hypothetical stake.
+     */
     function estimateReward(uint256 amount, uint256 lockupDays) external view returns (uint256) {
         uint256 lockupTIMESTAMP = lockupDays * TIMESTAMP_PER_DAY;
         uint256 projectedReward = _calculateTotalReward(block.timestamp, block.timestamp + lockupTIMESTAMP);
@@ -215,6 +284,23 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         return (weight * projectedAcc) / PRECISION_FACTOR;
     }
 
+    /**
+     * @dev Internal function to calculate total rewards to be distributed over a given period.
+     *      The reward pool follows a geometric decay schedule:
+     *      - In year N, 1/3 of the remaining undistributed reward is allocated.
+     *      - This produces the following allocation pattern:
+     *          Year 0: (1/3) of total
+     *          Year 1: (1/3) of remaining = (1/3) * (2/3) = 2/9
+     *          Year 2: (1/3) * (2/3)^2 = 4/27, ...
+     *      This ensures early participants receive higher rewards (front-loaded incentive),
+     *      while still allowing rewards to be emitted over the long term.
+     *      This function slices the provided time window (`from` to `to`)
+     *      into overlapping reward years and sums up proportional rewards.
+     *
+     * @param from Start timestamp (inclusive)
+     * @param to   End timestamp (exclusive)
+     * @return Total reward amount to distribute during this time window
+     */
     function _calculateTotalReward(uint256 from, uint256 to) internal view returns (uint256) {
         if (from >= to) return 0;
 
@@ -240,7 +326,9 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         return sum;
     }
 
-
+    /**
+     * @dev Returns current annual percentage yield (APY).
+     */
     function getAPY() external view returns (uint256) {
         if (totalWeightedStaked == 0) return 0;
 
@@ -248,15 +336,24 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         return reward / totalWeightedStaked;
     }
 
+    /**
+     * @dev Returns the average lockup duration in years across all users.
+     */
     function getAvgLockupYears() external view returns (uint256) {
         if (stakerCount == 0) return 0;
         return (accumulatedLockupDays * 1e18) / (stakerCount * 365);
     }
 
+    /**
+     * @dev View current accRewardPerShare.
+     */
     function getAccRewardPerShareNow() external view returns (uint256) {
         return accRewardPerShare;
     }
 
+     /**
+     * @dev Emergency withdraw with penalty. Forfeits all rewards.
+     */
     function emergencyWithdraw() external nonReentrant {
         StakeInfo storage user = stakes[msg.sender];
         uint256 amountToTransfer = user.amount;
