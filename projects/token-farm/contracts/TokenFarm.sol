@@ -37,6 +37,7 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
     uint256 public lastRewardTimestamp;
     uint256 public totalStaked;
     uint256 public totalWeightedStaked;
+    uint256 public totalPenalty;
 
     struct StakeInfo {
         uint256 amount;               // User's staked amount
@@ -57,6 +58,7 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
     event Claimed(address indexed user, uint256 amount);
     event EmergencyWithdraw(address indexed user, uint256 amount);
     event RewardAdded(uint256 indexed fromYear, uint256 amount);
+    event redistributeRemainingReward(uint256 amount);
 
     constructor(
         IBEP20 _stakingToken,
@@ -360,6 +362,13 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
 
         require(amountToTransfer > 0, "Nothing to withdraw");
         require(user.claimed == 0, "Already claimed");
+
+        _updatePool();
+        uint256 pending = (user.weight * accRewardPerShare) / PRECISION_FACTOR - user.rewardDebt;
+        if (pending > 0) {
+            uint256 fromYear = _getYearIndex(block.timestamp) + 1;
+            _distributeDecay(fromYear, pending);
+        }
 
         uint256 penalty = (amountToTransfer * 10_000) / 100_000;
         uint256 finalAmount = amountToTransfer - penalty;
