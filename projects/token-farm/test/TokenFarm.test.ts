@@ -30,21 +30,20 @@ describe("TimeBasedStaking - Full Test Suite", () => {
 
     await rewardToken.connect(owner).approve(staking.target, parseEther("1000000"));
     await staking.setReward(totalRewardCap);
-    // await staking.connect(owner).addReward(parseEther("700000"));
 
     await stakeToken.connect(owner).transfer(other.address, parseEther("1000"));
     await stakeToken.connect(other).approve(staking.target, parseEther("1000"));
   });
 
   describe("stake()", () => {
-    it("should stake with min amount and 1-day lockup", async () => {
-      await staking.connect(user).stake(parseEther("0.000001"), 1);
+    it("should stake with min amount and 7-day lockup", async () => {
+      await staking.connect(user).stake(parseEther("0.000001"), 7);
       const stake = await staking.stakes(user.address);
       expect(stake.amount).to.equal(parseEther("0.000001"));
     });
 
     it("should revert when lockupDays > MAX_LOCK_DAYS", async () => {
-      await expect(staking.connect(user).stake(stakeAmount, 1461)).to.be.revertedWith("Too long");
+      await expect(staking.connect(user).stake(stakeAmount, 1461)).to.be.revertedWith("Lockup too long");
     });
 
     it("should accumulate stake and weight across multiple lockups", async () => {
@@ -60,12 +59,12 @@ describe("TimeBasedStaking - Full Test Suite", () => {
     });
   });
 
-  describe("testCalculateTotalReward()", () => {
+  describe("getTotalRewardFromTimestamp()", () => {
     const year = days(365);
 
     it("should return 0 when from == to", async () => {
       const now = (await ethers.provider.getBlock("latest")).timestamp;
-      const reward = await staking.testCalculateTotalReward(now, now);
+      const reward = await staking.getTotalRewardFromTimestamp(now, now);
       expect(reward).to.equal(0);
     });
 
@@ -76,7 +75,7 @@ describe("TimeBasedStaking - Full Test Suite", () => {
       const cap = await staking.totalRewardCap();
       const expected = toBigInt(cap) / 3n;
 
-      const actual = toBigInt(await staking.testCalculateTotalReward(start, end));
+      const actual = toBigInt(await staking.getTotalRewardFromTimestamp(start, end));
       expect(actual).to.equal(expected);
     });
 
@@ -87,7 +86,7 @@ describe("TimeBasedStaking - Full Test Suite", () => {
       const cap = await staking.totalRewardCap();
       const expected = toBigInt(cap) / 3n / 2n;
 
-      const actual = toBigInt(await staking.testCalculateTotalReward(start, end));
+      const actual = toBigInt(await staking.getTotalRewardFromTimestamp(start, end));
       expect(actual).to.equal(expected);
     });
 
@@ -101,7 +100,7 @@ describe("TimeBasedStaking - Full Test Suite", () => {
       const r2 = (y2 * BigInt(days(100))) / BigInt(days(365));
       const expected = y1 + r2;
 
-      const actual = toBigInt(await staking.testCalculateTotalReward(start, end));
+      const actual = toBigInt(await staking.getTotalRewardFromTimestamp(start, end));
       expect(actual).to.equal(expected);
     });
 
@@ -119,7 +118,7 @@ describe("TimeBasedStaking - Full Test Suite", () => {
 
       const expected = (r1 + r2) / PRECISION;
 
-      const actual = toBigInt(await staking.testCalculateTotalReward(start, end));
+      const actual = toBigInt(await staking.getTotalRewardFromTimestamp(start, end));
       expect(actual).to.equal(expected);
     });
   });
@@ -141,7 +140,7 @@ describe("TimeBasedStaking - Full Test Suite", () => {
 
       const accAfter = toBigInt(await staking.getAccRewardPerShareNow());
 
-      const reward = toBigInt(await staking.testCalculateTotalReward(start, next));
+      const reward = toBigInt(await staking.getTotalRewardFromTimestamp(start, next));
       const expectedAccIncrease = (reward * 10n ** 18n) / initialWeight;
 
       // 정확하게 일치해야 함
@@ -163,7 +162,7 @@ describe("TimeBasedStaking - Full Test Suite", () => {
 
       const accAfter = toBigInt(await staking.getAccRewardPerShareNow());
 
-      const reward = toBigInt(await staking.testCalculateTotalReward(start, next));
+      const reward = toBigInt(await staking.getTotalRewardFromTimestamp(start, next));
       const expectedAccIncrease = (reward * 10n ** 18n) / totalWeight;
 
       const user1weight = (parseEther("1000") * 25n) / 100n;
@@ -236,7 +235,7 @@ describe("TimeBasedStaking - Full Test Suite", () => {
 
       const diff = toBigInt(after) - toBigInt(before);
 
-      const totalReward = toBigInt(await staking.testCalculateTotalReward(firstClaimTime, secondClaimTime));
+      const totalReward = toBigInt(await staking.getTotalRewardFromTimestamp(firstClaimTime, secondClaimTime));
       const weight = toBigInt((await staking.stakes(user.address)).weight);
       const totalWeight = toBigInt(await staking.totalWeightedStaked());
       const rewardPerWeight = (totalReward * PRECISION) / totalWeight;
@@ -267,6 +266,112 @@ describe("TimeBasedStaking - Full Test Suite", () => {
     });
   });
 
+  describe("multi-user and restaking scenarios", () => {
+    it("should distribute rewards fairly between two users with same weight", async () => {
+      const PRECISION = 10n ** 18n;
+
+      const t0 = toNumber(await staking.lastRewardTimestamp());
+      await staking.connect(user).stake(parseEther("1000"), 365);
+
+      await ethers.provider.send("evm_setNextBlockTimestamp", [t0 + days(1)]);
+      await staking.connect(other).stake(parseEther("1000"), 365);
+
+      const claimTime = t0 + days(10);
+      await ethers.provider.send("evm_setNextBlockTimestamp", [claimTime]);
+      await staking.connect(user).claim();
+      await ethers.provider.send("evm_setNextBlockTimestamp", [claimTime + 1]);
+      await staking.connect(other).claim();
+
+      const totalRewardForUser = toBigInt(await rewardToken.balanceOf(user.address));
+      const totalRewardForOther = toBigInt(await rewardToken.balanceOf(other.address));
+      const totalClaimed = totalRewardForUser + totalRewardForOther;
+
+      const userWeight = toBigInt((await staking.stakes(user.address)).weight);
+      const otherWeight = toBigInt((await staking.stakes(other.address)).weight);
+      const secReward = BigInt(await staking.getTotalRewardFromTimestamp(claimTime, claimTime + 1));
+
+      const numerator = secReward * userWeight * PRECISION;
+      const denominator = userWeight + otherWeight;
+      const remainReward = (numerator + denominator / 2n) / denominator / PRECISION;
+
+      const expectedTotalReward = BigInt(await staking.getTotalRewardFromTimestamp(t0, claimTime + 1)) - remainReward;
+
+      console.log("User reward  :", totalRewardForUser.toString());
+      console.log("Other reward :", totalRewardForOther.toString());
+      console.log("Total claimed:", totalClaimed.toString());
+      console.log("Expected     :", expectedTotalReward.toString());
+
+      expect(totalClaimed).to.equal(expectedTotalReward);
+    });
+
+    it("should update rewards correctly when a second user stakes after initial acc update", async () => {
+      await staking.connect(user).stake(parseEther("1000"), 365);
+      const start = await staking.lastRewardTimestamp();
+      const t1 = toNumber(start) + days(5);
+
+      await ethers.provider.send("evm_setNextBlockTimestamp", [t1]);
+      await staking.connect(other).stake(parseEther("1000"), 365);
+
+      const t2 = t1 + days(5);
+      await ethers.provider.send("evm_setNextBlockTimestamp", [t2]);
+      await staking.connect(user).claim();
+      await staking.connect(other).claim();
+
+      const userReward = await rewardToken.balanceOf(user.address);
+      const otherReward = await rewardToken.balanceOf(other.address);
+
+      const totalReward = await staking.getTotalRewardFromTimestamp(t1, t2);
+      const expectedUserReward = (toBigInt(totalReward) * 1n) / 1n; // user had full weight over 10 days
+
+      expect(toBigInt(userReward)).to.be.closeTo(expectedUserReward, 1n);
+      expect(toBigInt(otherReward)).to.be.closeTo(0n, 1n);
+    });
+
+    it("should adjust accRewardPerShare and pending rewards when user stakes again", async () => {
+      await staking.connect(user).stake(parseEther("1000"), 365);
+      const t1 = toNumber(await staking.lastRewardTimestamp()) + days(10);
+      await ethers.provider.send("evm_setNextBlockTimestamp", [t1]);
+      await staking.connect(user).claim();
+
+      await ethers.provider.send("evm_setNextBlockTimestamp", [t1]);
+
+      await staking.connect(user).stake(parseEther("500"), 180);
+      const t2 = t1 + days(10);
+      await ethers.provider.send("evm_setNextBlockTimestamp", [t2]);
+      await staking.connect(user).claim();
+
+      const reward = toBigInt(await rewardToken.balanceOf(user.address));
+      const rewardSegment = toBigInt(await staking.getTotalRewardFromTimestamp(t1, t2));
+      const totalWeight = toBigInt(await staking.totalWeightedStaked());
+      const userWeight = toBigInt((await staking.stakes(user.address)).weight);
+      const expectedReward = (rewardSegment * userWeight) / totalWeight;
+
+      expect(reward).to.be.closeTo(expectedReward, 1n);
+    });
+
+    it("should handle claim + stake + wait + claim correctly", async () => {
+      await staking.connect(user).stake(parseEther("500"), 90);
+      const t1 = toNumber(await staking.lastRewardTimestamp()) + days(10);
+      await ethers.provider.send("evm_setNextBlockTimestamp", [t1]);
+      await staking.connect(user).claim();
+      const reward1 = toBigInt(await rewardToken.balanceOf(user.address));
+
+      await staking.connect(user).stake(parseEther("500"), 90);
+      const t2 = t1 + days(10);
+      await ethers.provider.send("evm_setNextBlockTimestamp", [t2]);
+      await staking.connect(user).claim();
+
+      const reward2 = toBigInt(await rewardToken.balanceOf(user.address));
+      const delta = reward2 - reward1;
+      const rewardSegment = toBigInt(await staking.getTotalRewardFromTimestamp(t1, t2));
+      const totalWeight = toBigInt(await staking.totalWeightedStaked());
+      const userWeight = toBigInt((await staking.stakes(user.address)).weight);
+      const expectedReward = (rewardSegment * userWeight) / totalWeight;
+
+      expect(delta).to.be.closeTo(expectedReward, 1n);
+    });
+  });
+
   describe("emergencyWithdraw()", () => {
     it("should allow emergencyWithdraw with 10% penalty if not claimed", async () => {
       await staking.connect(user).stake(parseEther("1000"), 365);
@@ -287,7 +392,7 @@ describe("TimeBasedStaking - Full Test Suite", () => {
   describe("addReward()", () => {
     it("should distribute newly added reward starting from next year only", async () => {
       const block = await ethers.provider.getBlock("latest");
-      const currentYear = await staking.testGetYearIndex(block.timestamp);
+      const currentYear = await staking.getYearIndex(block.timestamp);
       await staking.connect(owner).addReward(parseEther("27000"));
 
       const year0 = await staking.rewardPerYear(currentYear);

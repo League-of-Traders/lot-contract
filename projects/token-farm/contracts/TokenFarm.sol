@@ -26,7 +26,7 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
     uint256 public immutable startTimestamp;
     uint256 public constant TIMESTAMP_PER_YEAR = 365 days;
     uint256 public constant TIMESTAMP_PER_DAY = 1 days;
-    uint256 public constant MIN_LOCKUP_DAYS = 7;
+    uint256 public constant MIN_LOCKUP_DAYS = 1;
     uint256 public constant MAX_LOCKUP_DAYS = 1460; 
     uint256 public constant PRECISION_FACTOR = 1e18;
 
@@ -39,11 +39,11 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
     uint256 public totalWeightedStaked;
 
     struct StakeInfo {
-        uint256 amount;          // User's staked amount
-        uint256 weight;          // Staked amount weighted by lockup
-        uint256 rewardDebt;      // Reward debt for reward accounting
-        uint256 claimed;         // Total rewards claimed
-        uint256 lockupEndBlock;  // Timestamp when lockup ends
+        uint256 amount;               // User's staked amount
+        uint256 weight;               // Staked amount weighted by lockup
+        uint256 rewardDebt;           // Reward debt for reward accounting
+        uint256 claimed;              // Total rewards claimed
+        uint256 lockupEndTimestamp ;  // Timestamp when lockup ends
     }
 
     mapping(address => StakeInfo) public stakes;
@@ -179,7 +179,7 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         require(amount > 0 || s.amount > 0, "Cannot init stake 0");
 
         uint256 newLockupEnd = block.timestamp + (lockupDays * TIMESTAMP_PER_DAY);
-        require(s.lockupEndBlock <= newLockupEnd, "Lock up should be longer then initial lockup period");
+        require(s.lockupEndTimestamp <= newLockupEnd, "Lock up should be longer then initial lockup period");
 
         if (s.weight > 0) {
             uint256 pending = (s.weight * accRewardPerShare) / PRECISION_FACTOR - s.rewardDebt;
@@ -193,7 +193,7 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         if (s.amount == 0) {
             stakerCount += 1;
         } else {
-            accumulatedLockupDays -= (s.lockupEndBlock - block.timestamp) /TIMESTAMP_PER_DAY;
+            accumulatedLockupDays -= (s.lockupEndTimestamp - block.timestamp) /TIMESTAMP_PER_DAY;
         }
         accumulatedLockupDays += lockupDays;
 
@@ -203,7 +203,7 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         s.weight += weight;
         totalWeightedStaked += weight;
         s.rewardDebt = (s.weight * accRewardPerShare) / PRECISION_FACTOR;
-        s.lockupEndBlock = newLockupEnd;
+        s.lockupEndTimestamp = newLockupEnd;
         totalStaked += amount;
 
         stakingToken.transferFrom(msg.sender, address(this), amount);
@@ -215,7 +215,7 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
      */
     function withdraw(uint256 amount) external nonReentrant {
         StakeInfo storage s = stakes[msg.sender];
-        require(block.timestamp >= s.lockupEndBlock, "Locked");
+        require(block.timestamp >= s.lockupEndTimestamp, "Locked");
         require(amount > 0 && s.amount >= amount, "Invalid");
         require(totalRewardCap != 0, "Reward not set");
 
@@ -366,14 +366,14 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
 
         totalWeightedStaked -= user.weight;
         totalStaked -= amountToTransfer;
-        accumulatedLockupDays -= (user.lockupEndBlock > block.timestamp)
-            ? (user.lockupEndBlock - block.timestamp) / TIMESTAMP_PER_DAY
+        accumulatedLockupDays -= (user.lockupEndTimestamp > block.timestamp)
+            ? (user.lockupEndTimestamp - block.timestamp) / TIMESTAMP_PER_DAY
             : 0;
 
         user.amount = 0;
         user.weight = 0;
         user.rewardDebt = 0;
-        user.lockupEndBlock = 0;
+        user.lockupEndTimestamp = 0;
 
         stakingToken.transfer(msg.sender, finalAmount);
         if (penalty > 0) stakingToken.transfer(owner(), penalty);
@@ -393,11 +393,11 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         emit Unbanned(user);
     }
 
-    function testCalculateTotalReward(uint256 from, uint256 to) external view returns (uint256) {
+    function getTotalRewardFromTimestamp(uint256 from, uint256 to) external view returns (uint256) {
         return _calculateTotalReward(from, to);
     }
 
-    function testGetYearIndex(uint256 timestamp) external view returns (uint256) {
+    function getYearIndex(uint256 timestamp) external view returns (uint256) {
         return _getYearIndex(timestamp);
     }
 }
