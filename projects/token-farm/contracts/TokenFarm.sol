@@ -28,7 +28,7 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
     uint256 public constant TIMESTAMP_PER_DAY = 1 days;
     uint256 public constant MIN_LOCKUP_DAYS = 1;
     uint256 public constant MAX_LOCKUP_DAYS = 1460; 
-    uint256 public constant PRECISION_FACTOR = 1e18;
+    uint256 public constant PRECISION_FACTOR = 1e21;
 
     uint256 public totalRewardCap;
     uint256 public accumulatedLockupDays;
@@ -321,8 +321,9 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
 
             uint256 duration = overlapEnd - overlapStart;
             uint256 rewardForYear = rewardPerYear[i];
+            uint256 part  = (duration * rewardForYear * PRECISION_FACTOR) / TIMESTAMP_PER_YEAR;
 
-            sum += (duration * rewardForYear) / TIMESTAMP_PER_YEAR;
+            sum += part / PRECISION_FACTOR;
         }
 
         return sum;
