@@ -358,10 +358,6 @@ describe("TimeBasedStaking - Full Test Suite", () => {
       const expectedSegmentReward = numerator / denominator;
 
       const claimedSegmentReward = rewardAfter - rewardBefore;
-
-      console.log("expectedSegmentReward:", expectedSegmentReward.toString());
-      console.log("claimedSegmentReward :", claimedSegmentReward.toString());
-
       expect(claimedSegmentReward).to.be.closeTo(expectedSegmentReward, 2n);
     });
 
