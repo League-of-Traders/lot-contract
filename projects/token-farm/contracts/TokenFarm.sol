@@ -69,6 +69,10 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         startTimestamp = block.timestamp;
         lastRewardTimestamp = block.timestamp;
     }
+    
+    function setOwner(address newOwner) external onlyOwner {
+        transferOwnership(newOwner);
+    }
 
     /**
      * @dev Returns the ve-style staking weight for a given lockup duration.

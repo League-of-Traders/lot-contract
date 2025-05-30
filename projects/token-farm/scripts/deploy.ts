@@ -17,7 +17,6 @@ async function main() {
 
   let rewardToken;
   if (currentNetwork == "bsc_testnet") {
-    console.log(config);
     rewardToken = await ethers.getContractAt("MockBEP20", config.default.rewardTokenAddress[currentNetwork]);
   } else {
     const MockBEP20 = await ethers.getContractFactory("MockBEP20");
@@ -65,6 +64,7 @@ async function main() {
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
 main().catch((error) => {
   console.error(error);
   process.exit(1);
