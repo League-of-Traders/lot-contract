@@ -16,20 +16,31 @@ async function main() {
 
   let rewardToken;
   if (currentNetwork == "bsc_testnet") {
-    rewardToken = await ethers.getContractAt("MockBEP20", config.default.rewardTokenAddress[currentNetwork]);
+    rewardToken = await ethers.getContractAt("LotToken", config.default.rewardTokenAddress[currentNetwork]);
   } else if (currentNetwork == "bsc") {
-    rewardToken = await ethers.getContractAt("MockBEP20", config.default.rewardTokenAddress[currentNetwork]);
+    rewardToken = await ethers.getContractAt("LotToken", config.default.rewardTokenAddress[currentNetwork]);
     console.log("Using existing token at:", rewardToken.address);
   } else {
-    const MockBEP20 = await ethers.getContractFactory("MockBEP20");
+    const MockBEP20 = await ethers.getContractFactory("LotToken");
     rewardToken = await MockBEP20.deploy("Test League of Traders", "tLOT", INITIAL_SUPPLY);
   }
-  const newOwnerRaw = "0xCAB4Ccda51f40B677061A7D5e6CED04817BE8F53";
-  const newOwner = getAddress(newOwnerRaw); // 주소 정제
+  const newOwnerRaw = "0xa419852BeCEbf7A3757c7DD0559F396431B88146";
+  const newOwner = getAddress(newOwnerRaw);
 
-  const tx = await rewardToken.transferOwnership(newOwner);
-  await tx.wait();
-  console.log("Ownership transferred to:", "0xCAB4Ccda51f40B677061A7D5e6CED04817BE8F53  ", tx);
+  if (currentNetwork == "bsc") {
+    const Staking = await ethers.getContractAt("TimeBasedStaking", config.default.stakingAddress[currentNetwork]);
+    const tx = await Staking.setOwner(newOwner);
+    await tx.wait();
+    console.log("Ownership transferred to:", newOwner, tx);
+  }
+
+  // const tx = await rewardToken.transferOwnership(newOwner);
+  // await tx.wait();
+  // console.log("Ownership transferred to:", "0xa419852BeCEbf7A3757c7DD0559F396431B88146  ", tx);
+
+  // const mintTx = await rewardToken.mint(INITIAL_SUPPLY + parseEther("1000000"));
+  // await mintTx.wait();
+  // console.log(`Minted ${(INITIAL_SUPPLY + parseEther("1000000")).toString()} tokens to ${deployer.address}`);
 
   // await rewardToken.waitForDeployment();
   // console.log("Token deployed to:", await rewardToken.getAddress());
