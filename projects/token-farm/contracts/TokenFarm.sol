@@ -4,6 +4,7 @@ pragma solidity 0.8.26;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "bsc-library/contracts/IBEP20.sol";
+import "bsc-library/contracts/SafeBEP20.sol";
 
 /**
  * @title TimeBasedStaking
@@ -20,6 +21,8 @@ import "bsc-library/contracts/IBEP20.sol";
  * - Gas efficiency: Uses accRewardPerShare for scalable distribution.
  */
 contract TimeBasedStaking is Ownable, ReentrancyGuard {
+    using SafeBEP20 for IBEP20;
+
     IBEP20 public stakingToken;
     IBEP20 public rewardToken;
 
@@ -107,7 +110,7 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         _distributeDecay(fromYear, amount);
         _updatePool();
 
-        require(rewardToken.transferFrom(msg.sender, address(this), amount), "Transfer failed");
+        rewardToken.safeTransferFrom(msg.sender, address(this), amount);
         emit RewardAdded(fromYear, amount);
     }
 
@@ -125,7 +128,7 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
 
         _distributeDecay(fromYear, amount);
 
-        require(rewardToken.transferFrom(msg.sender, address(this), amount), "Transfer failed");
+        rewardToken.safeTransferFrom(msg.sender, address(this), amount);
         emit RewardAdded(fromYear, amount);
     }
 
@@ -191,7 +194,7 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
             uint256 pending = (s.weight * accRewardPerShare) / PRECISION_FACTOR - s.rewardDebt;
             if (pending > 0) {
                 s.claimed += pending;
-                rewardToken.transfer(msg.sender, pending);
+                rewardToken.safeTransfer(msg.sender, pending);
                 emit Claimed(msg.sender, pending);
             }
         }
@@ -212,7 +215,7 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         s.lockupEndTimestamp = newLockupEnd;
         totalStaked += amount;
 
-        stakingToken.transferFrom(msg.sender, address(this), amount);
+        stakingToken.safeTransferFrom(msg.sender, address(this), amount);
         emit Staked(msg.sender, amount, lockupDays);
     }
 
@@ -230,7 +233,7 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         uint256 pending = (s.weight * accRewardPerShare) / PRECISION_FACTOR - s.rewardDebt;
         if (pending > 0) {
             s.claimed += pending;
-            rewardToken.transfer(msg.sender, pending);
+            rewardToken.safeTransfer(msg.sender, pending);
             emit Claimed(msg.sender, pending);
         }
 
@@ -241,7 +244,7 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         totalWeightedStaked -= withdrawnWeight;
         totalStaked -= amount;
 
-        stakingToken.transfer(msg.sender, amount);
+        stakingToken.safeTransfer(msg.sender, amount);
         emit Withdrawn(msg.sender, amount);
     }
 
@@ -259,7 +262,7 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
 
         s.claimed += pending;
         s.rewardDebt = (s.weight * accRewardPerShare) / PRECISION_FACTOR;
-        rewardToken.transfer(msg.sender, pending);
+        rewardToken.safeTransfer(msg.sender, pending);
         emit Claimed(msg.sender, pending);
     }
 
@@ -382,8 +385,8 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         user.rewardDebt = 0;
         user.lockupEndTimestamp = 0;
 
-        stakingToken.transfer(msg.sender, finalAmount);
-        if (penalty > 0) stakingToken.transfer(owner(), penalty);
+        stakingToken.safeTransfer(msg.sender, finalAmount);
+        if (penalty > 0) stakingToken.safeTransfer(owner(), penalty);
 
         emit EmergencyWithdraw(msg.sender, finalAmount);
     }
