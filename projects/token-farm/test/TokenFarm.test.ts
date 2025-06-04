@@ -130,7 +130,7 @@ describe("TimeBasedStaking - Full Test Suite", () => {
 
       // 초기 acc 값 및 weight 확보
       const initialWeight = toBigInt((await staking.stakes(user.address)).weight);
-      const accInitial = toBigInt(await staking.getAccRewardPerShareNow());
+      const accInitial = toBigInt(await staking.accRewardPerShare());
       const start = await staking.lastRewardTimestamp();
 
       const next = toNumber(start) + days(10);
@@ -138,7 +138,7 @@ describe("TimeBasedStaking - Full Test Suite", () => {
       await ethers.provider.send("evm_setNextBlockTimestamp", [next]);
       await staking.connect(user).claim();
 
-      const accAfter = toBigInt(await staking.getAccRewardPerShareNow());
+      const accAfter = toBigInt(await staking.accRewardPerShare());
 
       const reward = toBigInt(await staking.getTotalRewardFromTimestamp(start, next));
       const expectedAccIncrease = (reward * PRECISION) / initialWeight;
@@ -152,7 +152,7 @@ describe("TimeBasedStaking - Full Test Suite", () => {
       await staking.connect(other).stake(parseEther("1000"), 365);
 
       const totalWeight = toBigInt(await staking.totalWeightedStaked());
-      const accInitial = toBigInt(await staking.getAccRewardPerShareNow());
+      const accInitial = toBigInt(await staking.accRewardPerShare());
 
       const start = await staking.lastRewardTimestamp();
       const next = toNumber(start) + days(10);
@@ -160,7 +160,7 @@ describe("TimeBasedStaking - Full Test Suite", () => {
       await ethers.provider.send("evm_setNextBlockTimestamp", [next]);
       await staking.connect(user).claim();
 
-      const accAfter = toBigInt(await staking.getAccRewardPerShareNow());
+      const accAfter = toBigInt(await staking.accRewardPerShare());
 
       const reward = toBigInt(await staking.getTotalRewardFromTimestamp(start, next));
       const expectedAccIncrease = (reward * PRECISION) / totalWeight;
@@ -183,7 +183,7 @@ describe("TimeBasedStaking - Full Test Suite", () => {
       await ethers.provider.send("evm_setNextBlockTimestamp", [after2yr]);
       await staking.connect(user).claim();
 
-      const accAfter = toBigInt(await staking.getAccRewardPerShareNow());
+      const accAfter = toBigInt(await staking.accRewardPerShare());
       const cap = toBigInt(await staking.totalRewardCap());
 
       const y1 = cap / 3n;
@@ -208,7 +208,7 @@ describe("TimeBasedStaking - Full Test Suite", () => {
       const after = await rewardToken.balanceOf(user.address);
 
       const stake = await staking.stakes(user.address);
-      const accRewardPerShare = await staking.getAccRewardPerShareNow();
+      const accRewardPerShare = await staking.accRewardPerShare();
       const weight = toBigInt(stake.weight);
       const acc = toBigInt(accRewardPerShare);
 

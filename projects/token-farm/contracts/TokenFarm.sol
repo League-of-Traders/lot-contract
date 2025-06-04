@@ -44,7 +44,7 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         uint256 weight;               // Staked amount weighted by lockup
         uint256 rewardDebt;           // Reward debt for reward accounting
         uint256 claimed;              // Total rewards claimed
-        uint256 lockupEndTimestamp ;  // Timestamp when lockup ends
+        uint256 lockupEndTimestamp ;  // Timestamp when lockup ends        
     }
 
     mapping(address => StakeInfo) public stakes;
@@ -183,7 +183,7 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         StakeInfo storage s = stakes[msg.sender];
 
         require(amount > 0 || s.amount > 0, "Cannot init stake 0");
-
+    
         uint256 newLockupEnd = block.timestamp + (lockupDays * TIMESTAMP_PER_DAY);
         require(s.lockupEndTimestamp <= newLockupEnd, "Lock up should be longer then initial lockup period");
 
@@ -349,13 +349,6 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
     function getAvgLockupYears() external view returns (uint256) {
         if (stakerCount == 0) return 0;
         return (accumulatedLockupDays * 1e18) / (stakerCount * 365);
-    }
-
-    /**
-     * @dev View current accRewardPerShare.
-     */
-    function getAccRewardPerShareNow() external view returns (uint256) {
-        return accRewardPerShare;
     }
 
      /**
