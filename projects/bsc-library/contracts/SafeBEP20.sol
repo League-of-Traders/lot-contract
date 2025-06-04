@@ -102,7 +102,7 @@ library SafeBEP20 {
     // the target address contains contract code and also asserts for success in the low-level call.
 
     bytes memory returndata =
-      address(token).functionCall(data, "SafeBEP20: low-level call failed");
+      address(token).functionCall(data);
     if (returndata.length > 0) {
       // Return data is optional
       // solhint-disable-next-line max-line-length
