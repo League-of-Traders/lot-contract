@@ -57,6 +57,63 @@ describe("TimeBasedStaking - Full Test Suite", () => {
     it("should revert on initial stake with 0 amount", async () => {
       await expect(staking.connect(user).stake(0, 10)).to.be.revertedWith("Cannot init stake 0");
     });
+
+    it("should allow stake extension (0 amount) only if weight increases", async () => {
+      await staking.connect(user).stake(parseEther("1000"), 30);
+      const original = await staking.stakes(user.address);
+
+      await ethers.provider.send("evm_increaseTime", [days(10)]);
+      await ethers.provider.send("evm_mine", []);
+
+      await staking.connect(user).stake(0, 60); // 연장 with higher weight
+
+      const updated = await staking.stakes(user.address);
+      expect(updated.amount).to.equal(original.amount);
+      expect(updated.weight).to.be.gt(original.weight);
+      expect(updated.lockupEndTimestamp).to.be.gt(original.lockupEndTimestamp);
+    });
+
+    it("should increase weight when adding more tokens with same lockupDays", async () => {
+      await staking.connect(user).stake(parseEther("1000"), 60);
+      const before = await staking.stakes(user.address);
+
+      await staking.connect(user).stake(parseEther("500"), 60); // same lockup, more tokens
+
+      const after = await staking.stakes(user.address);
+      expect(after.amount).to.equal(parseEther("1500"));
+      expect(after.weight).to.be.gt(before.weight);
+    });
+
+    it("should increase weight on repeated extensions", async () => {
+      await staking.connect(user).stake(parseEther("1000"), 30);
+      const s1 = await staking.stakes(user.address);
+
+      await ethers.provider.send("evm_increaseTime", [days(10)]);
+      await staking.connect(user).stake(0, 60); // 연장 1
+
+      const s2 = await staking.stakes(user.address);
+      expect(s2.weight).to.be.gt(s1.weight);
+
+      await ethers.provider.send("evm_increaseTime", [days(10)]);
+      await staking.connect(user).stake(0, 120); // 연장 2
+
+      const s3 = await staking.stakes(user.address);
+      expect(s3.weight).to.be.gt(s2.weight);
+    });
+
+    it("should increase weight when extending then adding more tokens", async () => {
+      await staking.connect(user).stake(parseEther("1000"), 60);
+      const before = await staking.stakes(user.address);
+
+      await ethers.provider.send("evm_increaseTime", [days(15)]);
+      await staking.connect(user).stake(0, 120); // 연장 먼저
+
+      await staking.connect(user).stake(parseEther("500"), 120); // 그 뒤 추가 스테이킹
+
+      const after = await staking.stakes(user.address);
+      expect(after.amount).to.equal(parseEther("1500"));
+      expect(after.weight).to.be.gt(before.weight);
+    });
   });
 
   describe("getTotalRewardFromTimestamp()", () => {
@@ -498,6 +555,36 @@ describe("TimeBasedStaking - Full Test Suite", () => {
 
     it("should revert if setReward is called twice", async () => {
       await expect(staking.connect(owner).setReward(parseEther("1000"))).to.be.revertedWith("Already set");
+    });
+
+    it("should revert if weight does not increase", async () => {
+      await staking.connect(user).stake(parseEther("1000"), 60);
+
+      await expect(
+        staking.connect(user).stake(0, 60), // 동일 weight로 연장 시도
+      ).to.be.revertedWith("Weight must increase");
+    });
+
+    it("should revert if trying to extend with shorter or same lockupDays", async () => {
+      await staking.connect(user).stake(parseEther("1000"), 90);
+
+      await ethers.provider.send("evm_increaseTime", [days(5)]);
+      await expect(
+        staking.connect(user).stake(0, 90), // 같은 lockup
+      ).to.be.revertedWith("Weight must increase");
+
+      await expect(
+        staking.connect(user).stake(0, 30), // 짧게
+      ).to.be.revertedWith("Lock up should be longer then initial lockup period");
+    });
+
+    it("should revert if adding stake with shorter lockup than previous", async () => {
+      await staking.connect(user).stake(parseEther("1000"), 60);
+
+      await ethers.provider.send("evm_increaseTime", [days(10)]);
+      await expect(staking.connect(user).stake(parseEther("100"), 30)).to.be.revertedWith(
+        "Lock up should be longer then initial lockup period",
+      );
     });
   });
 });

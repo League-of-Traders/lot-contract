@@ -190,6 +190,12 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         uint256 newLockupEnd = block.timestamp + (lockupDays * TIMESTAMP_PER_DAY);
         require(s.lockupEndTimestamp <= newLockupEnd, "Lock up should be longer then initial lockup period");
 
+        uint256 oldWeight = s.weight;
+        uint256 newAmount = s.amount + amount;
+
+        uint256 newWeight = (newAmount * getLockupWeight(lockupDays)) / PRECISION_FACTOR;
+        require(newWeight > oldWeight, "Weight must increase");
+
         if (s.weight > 0) {
             uint256 pending = (s.weight * accRewardPerShare) / PRECISION_FACTOR - s.rewardDebt;
             if (pending > 0) {
@@ -206,11 +212,9 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         }
         accumulatedLockupDays += lockupDays;
 
-
-        uint256 weight = (amount * getLockupWeight(lockupDays)) / PRECISION_FACTOR;
-        s.amount += amount;
-        s.weight += weight;
-        totalWeightedStaked += weight;
+        s.weight = newWeight;
+        s.amount = newAmount;
+        totalWeightedStaked = totalWeightedStaked - oldWeight + newWeight;
         s.rewardDebt = (s.weight * accRewardPerShare) / PRECISION_FACTOR;
         s.lockupEndTimestamp = newLockupEnd;
         totalStaked += amount;
