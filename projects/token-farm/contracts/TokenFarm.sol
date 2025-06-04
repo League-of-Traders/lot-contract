@@ -337,9 +337,9 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Returns current annual percentage yield (APY).
+     * @notice Returns projected reward token distribution over the next year, divided by total weighted stake. Not a fiat-denominated APY.
      */
-    function getAPY() external view returns (uint256) {
+    function getAnnualRewardRate() external view returns (uint256) {
         if (totalWeightedStaked == 0) return 0;
 
         uint256 reward = _calculateTotalReward(block.timestamp, block.timestamp + TIMESTAMP_PER_YEAR);

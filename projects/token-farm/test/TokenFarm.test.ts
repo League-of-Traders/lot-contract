@@ -427,7 +427,7 @@ describe("TimeBasedStaking - Full Test Suite", () => {
   describe("metrics()", () => {
     it("should return non-zero APY and average lockup after stake", async () => {
       await staking.connect(user).stake(stakeAmount, 365);
-      const apy = await staking.getAPY();
+      const apy = await staking.getAnnualRewardRate();
       const avg = await staking.getAvgLockupYears();
       expect(apy).to.be.gt(0);
       expect(Number(formatEther(avg))).to.be.closeTo(1.0, 0.01);
