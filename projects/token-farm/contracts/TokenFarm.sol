@@ -197,8 +197,13 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         uint256 newLockupEnd = block.timestamp + (lockupDays * TIMESTAMP_PER_DAY);
         require(s.lockupEndTimestamp <= newLockupEnd, "Lock up should be longer then initial lockup period");
 
+        uint256 beforeBalance = stakingToken.balanceOf(address(this));
+        stakingToken.safeTransferFrom(msg.sender, address(this), amount);
+        uint256 afterBalance = stakingToken.balanceOf(address(this));
+        uint256 deltaReceived = afterBalance - beforeBalance;
+
         uint256 oldWeight = s.weight;
-        uint256 newAmount = s.amount + amount;
+        uint256 newAmount = s.amount + deltaReceived;
 
         uint256 newWeight = (newAmount * getLockupWeight(lockupDays)) / PRECISION_FACTOR;
         require(newWeight > oldWeight, "Weight must increase");
@@ -224,10 +229,8 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         totalWeightedStaked = totalWeightedStaked - oldWeight + newWeight;
         s.rewardDebt = (s.weight * accRewardPerShare) / PRECISION_FACTOR;
         s.lockupEndTimestamp = newLockupEnd;
-        totalStaked += amount;
-
-        stakingToken.safeTransferFrom(msg.sender, address(this), amount);
-        emit Staked(msg.sender, amount, lockupDays);
+        totalStaked += deltaReceived;
+        emit Staked(msg.sender, deltaReceived, lockupDays);
     }
 
     /**
@@ -241,6 +244,11 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
 
         _updatePool();
 
+        uint256 beforeBalance = stakingToken.balanceOf(address(this));
+        stakingToken.safeTransfer(msg.sender, amount);
+        uint256 afterBalance = stakingToken.balanceOf(address(this));
+        uint256 deltaWithdrawn = beforeBalance - afterBalance;
+
         uint256 pending = (s.weight * accRewardPerShare) / PRECISION_FACTOR - s.rewardDebt;
         if (pending > 0) {
             s.claimed += pending;
@@ -248,15 +256,13 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
             emit Claimed(msg.sender, pending);
         }
 
-        uint256 withdrawnWeight = (s.weight * amount) / s.amount;
-        s.amount -= amount;
+        uint256 withdrawnWeight = (s.weight * deltaWithdrawn) / s.amount;
+        s.amount -= deltaWithdrawn;
         s.weight -= withdrawnWeight;
         s.rewardDebt = (s.weight * accRewardPerShare) / PRECISION_FACTOR;
         totalWeightedStaked -= withdrawnWeight;
-        totalStaked -= amount;
-
-        stakingToken.safeTransfer(msg.sender, amount);
-        emit Withdrawn(msg.sender, amount);
+        totalStaked -= deltaWithdrawn;
+        emit Withdrawn(msg.sender, deltaWithdrawn);
     }
 
     /**
@@ -270,10 +276,11 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
 
         uint256 pending = (s.weight * accRewardPerShare) / PRECISION_FACTOR - s.rewardDebt;
         require(pending > 0, "No rewards");
+        require(pending <= rewardToken.balanceOf(address(this)), "Insufficient reward balance");
 
+        rewardToken.safeTransfer(msg.sender, pending);
         s.claimed += pending;
         s.rewardDebt = (s.weight * accRewardPerShare) / PRECISION_FACTOR;
-        rewardToken.safeTransfer(msg.sender, pending);
         emit Claimed(msg.sender, pending);
     }
 
@@ -381,12 +388,20 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
             uint256 fromYear = _getYearIndex(block.timestamp) + 1;
             _distributeDecay(fromYear, pending);
         }
-
         uint256 penalty = (amountToTransfer * 10_000) / 100_000;
         uint256 finalAmount = amountToTransfer - penalty;
 
+        uint256 beforeBalance = stakingToken.balanceOf(address(this));
+        stakingToken.safeTransfer(msg.sender, finalAmount);
+        uint256 afterBalance = stakingToken.balanceOf(address(this));
+        uint256 deltaTransferred = beforeBalance - afterBalance;
+
+        if (penalty > 0) {
+            stakingToken.safeTransfer(owner(), penalty);
+        }
+
         totalWeightedStaked -= user.weight;
-        totalStaked -= amountToTransfer;
+        totalStaked -= deltaTransferred;
         accumulatedLockupDays -= (user.lockupEndTimestamp > block.timestamp)
             ? (user.lockupEndTimestamp - block.timestamp) / TIMESTAMP_PER_DAY
             : 0;
@@ -395,11 +410,7 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         user.weight = 0;
         user.rewardDebt = 0;
         user.lockupEndTimestamp = 0;
-
-        stakingToken.safeTransfer(msg.sender, finalAmount);
-        if (penalty > 0) stakingToken.safeTransfer(owner(), penalty);
-
-        emit EmergencyWithdraw(msg.sender, finalAmount);
+        emit EmergencyWithdraw(msg.sender, deltaTransferred);
     }
 
     function getTotalRewardFromTimestamp(uint256 from, uint256 to) external view returns (uint256) {
