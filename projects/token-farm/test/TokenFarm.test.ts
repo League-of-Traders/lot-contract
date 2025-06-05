@@ -474,13 +474,6 @@ describe("TimeBasedStaking - Full Test Suite", () => {
     });
   });
 
-  describe("ban()", () => {
-    it("should prevent banned user from staking", async () => {
-      await staking.connect(owner).ban(user.address);
-      await expect(staking.connect(user).stake(stakeAmount, 30)).to.be.revertedWith("Banned user");
-    });
-  });
-
   describe("metrics()", () => {
     it("should return non-zero APY and average lockup after stake", async () => {
       await staking.connect(user).stake(stakeAmount, 365);
@@ -537,20 +530,6 @@ describe("TimeBasedStaking - Full Test Suite", () => {
 
     it("should revert when emergencyWithdraw with nothing to withdraw", async () => {
       await expect(staking.connect(user).emergencyWithdraw()).to.be.revertedWith("Nothing to withdraw");
-    });
-
-    it("should revert when banned user tries to stake", async () => {
-      await staking.connect(owner).ban(user.address);
-      await expect(staking.connect(user).stake(parseEther("1000"), 365)).to.be.revertedWith("Banned user");
-    });
-
-    it("should revert when ban() is called twice", async () => {
-      await staking.connect(owner).ban(user.address);
-      await expect(staking.connect(owner).ban(user.address)).to.be.revertedWith("Already banned");
-    });
-
-    it("should revert when unban() is called on non-banned user", async () => {
-      await expect(staking.connect(owner).unban(user.address)).to.be.revertedWith("Not banned");
     });
 
     it("should revert if setReward is called twice", async () => {

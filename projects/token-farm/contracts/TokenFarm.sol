@@ -41,7 +41,10 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
     uint256 public totalStaked;
     uint256 public totalWeightedStaked;
     uint256 public totalPenalty;
-
+    uint256 public lastSetOwnerTimestamp;
+    uint256 public lastSetRewardTimestamp;
+    uint256 public lastAddRewardTimestamp;
+    
     struct StakeInfo {
         uint256 amount;               // User's staked amount
         uint256 weight;               // Staked amount weighted by lockup
@@ -51,7 +54,6 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
     }
 
     mapping(address => StakeInfo) public stakes;
-    mapping(address => bool) public isBanned;
     mapping(uint256 => uint256) public rewardPerYear;
 
     event Banned(address indexed user);
@@ -74,6 +76,8 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
     }
     
     function setOwner(address newOwner) external onlyOwner {
+        require(block.timestamp >= lastSetOwnerTimestamp + 2 days, "Must wait 48h since last");
+        lastSetOwnerTimestamp = block.timestamp;
         transferOwnership(newOwner);
     }
 
@@ -103,6 +107,8 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
     function setReward(uint256 amount) external onlyOwner {
         require(amount > 0, "Invalid amount");
         require(totalRewardCap == 0, "Already set");
+        require(block.timestamp >= lastSetRewardTimestamp + 2 days, "Must wait 48h since last");
+        lastSetRewardTimestamp = block.timestamp;
 
         totalRewardCap = amount;
         uint256 fromYear = _getYearIndex(block.timestamp);
@@ -119,6 +125,8 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
      */
     function addReward(uint256 amount) external onlyOwner {
         require(amount > 0, "Invalid amount");
+        require(block.timestamp >= lastAddRewardTimestamp + 2 days, "Must wait 48h since last");
+        lastAddRewardTimestamp = block.timestamp;
 
         _updatePool();
 
@@ -179,7 +187,6 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
     function stake(uint256 amount, uint256 lockupDays) external nonReentrant {
         require(lockupDays >= MIN_LOCKUP_DAYS, "Lockup too short");
         require(lockupDays <= MAX_LOCKUP_DAYS, "Lockup too long");
-        require(!isBanned[msg.sender], "Banned user");
         require(totalRewardCap != 0, "Reward not set");
 
         _updatePool();
@@ -393,18 +400,6 @@ contract TimeBasedStaking is Ownable, ReentrancyGuard {
         if (penalty > 0) stakingToken.safeTransfer(owner(), penalty);
 
         emit EmergencyWithdraw(msg.sender, finalAmount);
-    }
-
-    function ban(address user) external onlyOwner {
-        require(!isBanned[user], "Already banned");
-        isBanned[user] = true;
-        emit Banned(user);
-    }
-
-    function unban(address user) external onlyOwner {
-        require(isBanned[user], "Not banned");
-        isBanned[user] = false;
-        emit Unbanned(user);
     }
 
     function getTotalRewardFromTimestamp(uint256 from, uint256 to) external view returns (uint256) {
