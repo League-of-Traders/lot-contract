@@ -17,13 +17,13 @@ Steps to reproduce the behavior:
 3. Scroll down to '....'
 4. See error
 
+- Used wallet service: ex) metamask, binance wallet etc 
+
 **Expected behavior**
 A clear and concise description of what you expected to happen.
 
 **Screenshots**
 If applicable, add screenshots to help explain your problem.
-
-- Used wallet service: ex) metamask, binance wallet etc 
 
 **Desktop (please complete the following information):**
  - OS: [e.g. iOS]
