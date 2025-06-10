@@ -211,6 +211,23 @@ contract BEP20 is Context, IBEP20, Ownable {
     }
 
     /**
+     * @dev Hook that is called before any transfer of tokens. This includes
+     * minting and burning.
+     *
+     * Calling conditions:
+     *
+     * - When `from` and `to` are both non-zero, `amount` of tokens will be
+     *   transferred from `from` to `to`.
+     * - When `from` is zero, `amount` tokens will be minted for `to`.
+     * - When `to` is zero, `amount` tokens will be burned from `from`.
+     * - `from` and `to` are never both zero.
+     *
+     * This function can be overridden to implement custom transfer logic, such as
+     * transfer restrictions, whitelisting, anti-bot mechanisms, or fee enforcement.
+     */
+    function _beforeTokenTransfer(address from, address to, uint256 amount) internal virtual {}
+
+    /**
      * @dev Moves tokens `amount` from `sender` to `recipient`.
      *
      * This is internal function is equivalent to {transfer}, and can be used to
@@ -231,6 +248,8 @@ contract BEP20 is Context, IBEP20, Ownable {
     ) internal {
         require(sender != address(0), "BEP20: transfer from the zero address");
         require(recipient != address(0), "BEP20: transfer to the zero address");
+
+        _beforeTokenTransfer(sender, recipient, amount);
 
         _balances[sender] = _balances[sender] - amount;
         _balances[recipient] = _balances[recipient] + amount;
