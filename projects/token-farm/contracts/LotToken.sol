@@ -5,7 +5,6 @@ import "bsc-library/contracts/BEP20.sol";
 
 contract LotToken is BEP20("League of traders", "LOT") {
     uint256 public transferAllowedTimestamp;
-    bool public transferUpdated;
     uint256 public ETA;
     mapping(address => bool) public whitelist;
 
@@ -20,16 +19,14 @@ contract LotToken is BEP20("League of traders", "LOT") {
     }
 
     function setTransferAllowedTimestamp(uint256 newTimestamp) external onlyOwner {
-        if (block.timestamp < transferAllowedTimestamp && ETA == 0) {
+        if (transferAllowedTimestamp > block.timestamp && ETA == 0) {
             transferAllowedTimestamp = newTimestamp;
         } else {
-            require(!transferUpdated, "Already updated once");
             if (ETA == 0) {
                 ETA = transferAllowedTimestamp + 1 days;
             }
-            require(block.timestamp <= ETA, "Too late to update");
+            require(newTimestamp <= ETA, "Too late to update");
             transferAllowedTimestamp = newTimestamp;
-            transferUpdated = true;
         }
         emit NewTransferAllowedTimestamp(newTimestamp);
     }
