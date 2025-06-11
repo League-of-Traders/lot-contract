@@ -20,12 +20,14 @@ contract LotToken is BEP20("League of traders", "LOT") {
 
     function setTransferAllowedTimestamp(uint256 newTimestamp) external onlyOwner {
         if (transferAllowedTimestamp > block.timestamp && ETA == 0) {
+            // any value is accepted
             transferAllowedTimestamp = newTimestamp;
         } else {
             if (ETA == 0) {
                 ETA = transferAllowedTimestamp + 1 days;
             }
-            require(newTimestamp <= ETA, "Too late to update");
+            // can not be later than ETA
+            require(newTimestamp <= ETA, "ETA!");
             transferAllowedTimestamp = newTimestamp;
         }
         emit NewTransferAllowedTimestamp(newTimestamp);
