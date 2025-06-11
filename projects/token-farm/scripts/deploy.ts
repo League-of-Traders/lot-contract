@@ -12,34 +12,56 @@ async function main() {
   console.log("Deployer:", deployer.address);
 
   // Parameters
-  const INITIAL_SUPPLY = parseUnits("100000000", 18);
+  const INITIAL_SUPPLY = parseUnits("15000000", 18);
   const TOTAL_REWARD_CAP = INITIAL_SUPPLY;
 
+  let deployedTokenAddress = config.default.rewardTokenAddress[currentNetwork];
   let rewardToken;
-  if (currentNetwork == "bsc_testnet") {
-    rewardToken = await ethers.getContractAt("MockBEP20", config.default.rewardTokenAddress[currentNetwork]);
+
+  if (
+    deployedTokenAddress &&
+    typeof deployedTokenAddress === "string" &&
+    deployedTokenAddress.startsWith("0x") &&
+    deployedTokenAddress.length === 42
+  ) {
+    rewardToken = await ethers.getContractAt("DummyToken", deployedTokenAddress);
   } else {
-    const MockBEP20 = await ethers.getContractFactory("MockBEP20");
-    rewardToken = await MockBEP20.deploy("Test League of Traders", "tLOT", INITIAL_SUPPLY);
+    const MockBEP20 = await ethers.getContractFactory("DummyToken");
+    const now = Math.floor(Date.now() / 1000) + 5;
+
+    rewardToken = await MockBEP20.deploy(now);
   }
   await rewardToken.waitForDeployment();
   console.log("Token deployed to:", await rewardToken.getAddress());
 
   // 2. 토큰 민트 (deployer에게)
   const rewardTokenAddress = await rewardToken.getAddress();
-  const mintTx = await rewardToken.mintTokens(INITIAL_SUPPLY + parseEther("1000000"));
+  const mintTx = await rewardToken.mint(INITIAL_SUPPLY + parseEther("1000000"));
   await mintTx.wait();
   console.log(`Minted ${(INITIAL_SUPPLY + parseEther("1000000")).toString()} tokens to ${deployer.address}`);
 
   // 3. Staking 컨트랙트 배포
-  const Staking = await ethers.getContractFactory("TimeBasedStaking");
-  const staking = await Staking.deploy(rewardTokenAddress, rewardTokenAddress);
+  let stakingContractAddress = config.default.stakingAddress[currentNetwork];
+
+  let staking;
+  if (
+    stakingContractAddress &&
+    typeof stakingContractAddress === "string" &&
+    stakingContractAddress.startsWith("0x") &&
+    stakingContractAddress.length === 42
+  ) {
+    staking = await ethers.getContractAt("TimeBasedStaking", stakingContractAddress);
+  } else {
+    const stakingConctract = await ethers.getContractFactory("TimeBasedStaking");
+    staking = await stakingConctract.deploy(rewardTokenAddress, rewardTokenAddress);
+  }
+
   await staking.waitForDeployment();
   console.log("Staking deployed to:", await staking.getAddress());
 
   await rewardToken.approve(staking.getAddress(), TOTAL_REWARD_CAP + parseEther("1000000"));
   console.log(`Transferred ${TOTAL_REWARD_CAP.toString()} tokens to staking contract`);
-  sleep(100000);
+  sleep(500000);
 
   await staking.setReward(TOTAL_REWARD_CAP);
   console.log(`Set reward to ${TOTAL_REWARD_CAP.toString()}`);
@@ -57,8 +79,8 @@ async function main() {
   }
 
   // 4. Staking
-  await staking.stake(parseEther("1000000"), 365);
-  console.log(`Staked 10000000 tokens for 365 days`);
+  // await staking.stake(parseEther("1000000"), 365);
+  // console.log(`Staked 10000000 tokens for 365 days`);
 }
 
 function sleep(ms: number) {
