@@ -3,7 +3,7 @@ pragma solidity 0.8.26;
 
 import "bsc-library/contracts/BEP20.sol";
 
-contract LotToken is BEP20("League of traders", "LOT") {
+contract LotToken is BEP20("DUMMY", "TOKEN") {
     uint256 public transferAllowedTimestamp;
     uint256 public ETA;
     mapping(address => bool) public whitelist;

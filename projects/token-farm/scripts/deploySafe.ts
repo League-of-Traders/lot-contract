@@ -2,9 +2,9 @@ import { ethers, network } from "hardhat";
 import { parseUnits, parseEther } from "ethers";
 
 import dotenv from "dotenv";
+import config from "../config";
 
 dotenv.config();
-const config = require("../config");
 const currentNetwork = network.name;
 
 async function main() {
@@ -16,7 +16,7 @@ async function main() {
 
   let rewardToken;
   if (currentNetwork == "bsc" || currentNetwork == "opbnb") {
-    const deployedTokenAddress = config.default.rewardTokenAddress[currentNetwork];
+    const deployedTokenAddress = config.rewardTokenAddress[currentNetwork];
     if (
       deployedTokenAddress &&
       typeof deployedTokenAddress === "string" &&
@@ -26,7 +26,7 @@ async function main() {
       rewardToken = await ethers.getContractAt("LotToken", deployedTokenAddress);
     } else {
       const token = await ethers.getContractFactory("LotToken");
-      const transferAllowTime = Math.floor(Date.now() / 1000) + 5;
+      const transferAllowTime = config.transferAllowTime();
       rewardToken = await token.deploy(transferAllowTime);
     }
   } else {

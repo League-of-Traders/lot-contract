@@ -8,12 +8,25 @@ dotenv.config();
 const currentNetwork = network.name;
 
 async function main() {
-  const [deployer] = await ethers.getSigners();
-  console.log("Deployer:", deployer.address);
+  const readline = await import("node:readline/promises");
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
 
-  const newOwner = config.newOwner[currentNetwork];
-  if (!newOwner || !ethers.isAddress(newOwner)) {
-    throw new Error("Please provide a valid newOwner address as argument");
+  const address = process.env.MINT_ADDRESS;
+  const amount = process.env.MINT_AMOUNT;
+
+  if (!address || !amount) {
+    console.error("Usage: <MINT_ADDRESS> <MINT_AMOUNT> yarn mint:<chain>");
+    process.exit(1);
+  }
+
+  const confirm = await rl.question(`Are you sure you want to mint ${amount} tokens to ${address}? (y/N): `);
+  rl.close();
+  if (confirm.toLowerCase() !== "y") {
+    console.log("Action aborted.");
+    return;
   }
 
   // Parameters
@@ -35,22 +48,9 @@ async function main() {
   await token.waitForDeployment();
   console.log("Token deployed to:", await token.getAddress());
 
-  const readline = await import("node:readline/promises");
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  const confirm = await rl.question("Are you sure you want to transfer ownership to " + newOwner + "? (y/n): ");
-  rl.close();
-  if (confirm.toLowerCase() !== "y") {
-    console.log("Transfer aborted.");
-    return;
-  }
-
-  const tx = await token.transferOwnership(newOwner);
-  await tx.wait();
-  console.log("Ownership transferred to: ", newOwner);
+  const result = await token.mintTo(address, parseUnits(amount, 18));
+  console.log(`${amount} tokens minted to ${address}`);
+  console.log("Tx hash:", result.hash);
 }
 
 main().catch((error) => {
