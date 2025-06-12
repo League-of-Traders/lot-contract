@@ -11,7 +11,7 @@ async function main() {
   const [deployer] = await ethers.getSigners();
   console.log("Deployer:", deployer.address);
 
-  const newOwner = process.argv[2]; // 첫 번째 인자
+  const newOwner = process.argv[2]; // argument for new owner address
 
   if (!newOwner || !ethers.isAddress(newOwner)) {
     throw new Error("Please provide a valid newOwner address as argument");
