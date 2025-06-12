@@ -18,7 +18,6 @@ async function main() {
   }
 
   // Parameters
-  const INITIAL_SUPPLY = parseUnits("100000000", 18);
   let deployedTokenAddress = config.default.rewardTokenAddress[currentNetwork];
   let token;
 

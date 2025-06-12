@@ -15,8 +15,20 @@ async function main() {
   const INITIAL_SUPPLY = parseUnits("100000000", 18);
 
   let rewardToken;
-  if (currentNetwork == "bsc") {
-    rewardToken = await ethers.getContractAt("LotToken", config.default.rewardTokenAddress[currentNetwork]);
+  if (currentNetwork == "bsc" || currentNetwork == "opbnb") {
+    const deployedTokenAddress = config.default.rewardTokenAddress[currentNetwork];
+    if (
+      deployedTokenAddress &&
+      typeof deployedTokenAddress === "string" &&
+      deployedTokenAddress.startsWith("0x") &&
+      deployedTokenAddress.length === 42
+    ) {
+      rewardToken = await ethers.getContractAt("LotToken", deployedTokenAddress);
+    } else {
+      const token = await ethers.getContractFactory("LotToken");
+      const transferAllowTime = Math.floor(Date.now() / 1000) + 5;
+      rewardToken = await token.deploy(transferAllowTime);
+    }
   } else {
     const MockBEP20 = await ethers.getContractFactory("MockBEP20");
     rewardToken = await MockBEP20.deploy("Test League of Traders", "tLOT", INITIAL_SUPPLY);

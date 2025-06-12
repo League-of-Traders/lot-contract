@@ -6,9 +6,12 @@
   "private": true,
   "scripts": {
     "compile": "npx hardhat compile",
-    "deploy:bsc": "npx hardhat run --network bsc scripts/deploy.ts",
-    "deploy:opbnb": "npx hardhat run --network opbnb scripts/deploy.ts",
-    "deploy:bsc-testnet": "npx hardhat run --network bsc_testnet scripts/deploy.ts",
+    "deploy-token:bsc": "npx hardhat run --network bsc scripts/deployToken.ts",
+    "deploy-token:opbnb": "npx hardhat run --network opbnb scripts/deployToken.ts",
+    "deploy-token:bsc-testnet": "npx hardhat run --network bsc_testnet scripts/deployToken.ts",
+    "deploy-staking:bsc": "npx hardhat run --network bsc scripts/deployStaking.ts",
+    "deploy-staking:opbnb": "npx hardhat run --network opbnb scripts/deployStaking.ts",
+    "deploy-staking:bsc-testnet": "npx hardhat run --network bsc_testnet scripts/deployStaking.ts",
     "test": "npx hardhat test",
     "test:coverage": "npx hardhat coverage",
     "test:size-contracts": "npx hardhat size-contracts"
