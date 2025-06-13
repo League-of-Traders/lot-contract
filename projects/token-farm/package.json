@@ -14,6 +14,7 @@
     "deploy-staking:bsc-testnet": "npx hardhat run --network bsc_testnet scripts/deployStaking.ts",
     "transfer-ownership:bsc": "npx hardhat run --network bsc scripts/transferOwnership.ts",
     "mint:bsc": "npx hardhat run --network bsc scripts/mintToken.ts",
+    "whitelist:bsc": "npx hardhat run --network bsc scripts/whitelist.ts",
     "test": "npx hardhat test",
     "test:coverage": "npx hardhat coverage",
     "test:size-contracts": "npx hardhat size-contracts"

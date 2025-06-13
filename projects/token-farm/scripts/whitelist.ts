@@ -14,20 +14,13 @@ async function main() {
     output: process.stdout,
   });
 
-  const address = process.env.MINT_ADDRESS;
-  const amount = process.env.MINT_AMOUNT;
-
-  if (!address || !amount) {
-    console.error("Usage: <MINT_ADDRESS> <MINT_AMOUNT> yarn mint:<chain>");
+  const address = process.env.ADDRESS;
+  if (!address) {
+    console.error("Usage: ADDRESS yarn whitelist:<chain>");
     process.exit(1);
   }
 
-  const formatter = new Intl.NumberFormat("en-US");
-  const amountFormatted = formatter.format(parseFloat(amount));
-  const percentage = ((parseFloat(amount) / 1_000_000_000) * 100).toFixed(2);
-  const confirm = await rl.question(
-    `Are you sure you want to mint ${amountFormatted} tokens (${percentage}% of total supply) to ${address}? (y/N): `,
-  );
+  const confirm = await rl.question(`Are you sure you want to whitelist ${address}? (y/N): `);
   rl.close();
   if (confirm.toLowerCase() !== "y") {
     console.log("Action aborted.");
@@ -53,9 +46,8 @@ async function main() {
   await token.waitForDeployment();
   console.log("Token deployed to:", await token.getAddress());
 
-  const result = await token.mintTo(address, parseUnits(amount, 18));
-  console.log(`${amount} tokens minted to ${address}`);
-  console.log("Tx hash:", result.hash);
+  const result = await token.addToWhitelist(address);
+  console.log("Done tx hash:", result.hash);
 }
 
 main().catch((error) => {
