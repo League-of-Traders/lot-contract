@@ -11,13 +11,13 @@ async function main() {
   const [deployer] = await ethers.getSigners();
   console.log("Deployer:", deployer.address);
 
-  const newOwner = config.newOwner[currentNetwork];
+  const newOwner = config.newOwner['bsc'];
   if (!newOwner || !ethers.isAddress(newOwner)) {
     throw new Error("Please provide a valid newOwner address as argument");
   }
 
   // Parameters
-  let deployedTokenAddress = config.rewardTokenAddress[currentNetwork];
+  let deployedTokenAddress = config.stakingAddress[currentNetwork];
   let token;
 
   if (
@@ -26,9 +26,9 @@ async function main() {
     deployedTokenAddress.startsWith("0x") &&
     deployedTokenAddress.length === 42
   ) {
-    token = await ethers.getContractAt("LotToken", deployedTokenAddress);
+    token = await ethers.getContractAt("TimeBasedStaking", deployedTokenAddress);
   } else {
-    const tokenContract = await ethers.getContractFactory("LotToken");
+    const tokenContract = await ethers.getContractFactory("TimeBasedStaking");
     const transferAllowTime = config.transferAllowTime();
     token = await tokenContract.deploy(transferAllowTime);
   }
