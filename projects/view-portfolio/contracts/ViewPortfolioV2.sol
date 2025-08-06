@@ -4,13 +4,13 @@ pragma solidity 0.8.26;
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
-import "bsc-library/contracts/IBEP20.sol";
+import "bsc-library/contracts/SafeBEP20.sol";
 import "../interface/IDexPriceOracle.sol";
 
 contract PortfolioViewV2 is Ownable2Step, ReentrancyGuard {
     using Address for address payable;
 
-    IBEP20 public paymentToken;
+    SafeBEP20 public paymentToken;
     IDexPriceOracle public dexPriceOracle;
 
     // Access mapping
@@ -65,10 +65,13 @@ contract PortfolioViewV2 is Ownable2Step, ReentrancyGuard {
     }
 
     function payWithBNB(address leader, string memory parentID, bool isLifetime) external payable nonReentrant {
+        require(leader != address(0), "Invalid leader"); // <--- Zero address 방지
         uint256 priceUsd = isLifetime ? priceLifetimeBNB : priceOneTimeBNB;
         require(priceUsd > 0, "Price must be greater than zero");
+        require(!_canAccess(msg.sender, leader), "Already have access");
 
         uint256 bnbUsd8 = dexPriceOracle.getBnbUsd(); // e.g., 350_00000000 == $350
+        require(bnbUsd8 > 0, "Invalid BNB price");
         uint256 paymentUsd = (msg.value * bnbUsd8) / 1e18; // Normalize: BNB(1e18) * USD(1e8) / 1e18 = 1e8
 
         require(paymentUsd >= priceUsd, "BNB value below required USD price");
@@ -90,19 +93,22 @@ contract PortfolioViewV2 is Ownable2Step, ReentrancyGuard {
     }
 
     function payWithToken(address leader,  string memory parentID, bool isLifetime) external nonReentrant {
+        require(leader != address(0), "Invalid leader"); // <--- Zero address 방지
         uint256 priceUsd = isLifetime ? priceLifetimeToken : priceOneTimeToken; // 8 decimals
-        require(priceUsd > 0, "Price must be greater than zero");
+        require(priceUsd >= 0, "Price must be greater than zero");
+        require(!_canAccess(msg.sender, leader), "Already have access");
 
-        uint256 tokenPriceUsd18 = dexPriceOracle.getTokenPriceInUSD();          // 18 decimals
-        uint256 requiredTokenAmount = (priceUsd * 1e28) / tokenPriceUsd18;      // 18 decimals
+        uint256 tokenPriceUsd18 = dexPriceOracle.getTokenPriceInUSD();
+        require(tokenPriceUsd18 > 0, "Invalid Token price");
+        uint256 requiredTokenAmount = (priceUsd * 1e28) / tokenPriceUsd18;  
 
         require(paymentToken.allowance(msg.sender, address(this)) >= requiredTokenAmount, "Token allowance too low");
 
         uint256 ownerFee = (requiredTokenAmount * OWNER_FEE_PERCENT) / 100;
         uint256 netAmount = requiredTokenAmount - ownerFee;
 
-        paymentToken.transferFrom(msg.sender, owner(), ownerFee);
-        paymentToken.transferFrom(msg.sender, leader, netAmount);
+        paymentToken.safeTransferFrom(msg.sender, owner(), ownerFee);
+        paymentToken.safeTransferFrom(msg.sender, leader, netAmount);
 
         if (isLifetime) {
             hasLifetimeAccess[msg.sender][leader] = true;
@@ -114,9 +120,12 @@ contract PortfolioViewV2 is Ownable2Step, ReentrancyGuard {
         emit AccessPurchased(msg.sender, leader, parentID, isLifetime, block.number);
     }
 
+    function _canAccess(address viewer, address user) internal view returns (bool) {
+        return hasLifetimeAccess[viewer][user] || hasOneTimeAccess[viewer][user] > block.timestamp;
+    }
 
     function canAccess(address user) external view returns (bool) {
-        return hasLifetimeAccess[msg.sender][user] || hasOneTimeAccess[msg.sender][user] > block.timestamp;
+        return _canAccess(msg.sender, address);
     }
 
     function getTokenPriceInUSD() external view returns (uint256) {
