@@ -4,13 +4,15 @@ pragma solidity 0.8.26;
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
+import "bsc-library/contracts/IBEP20.sol";
 import "bsc-library/contracts/SafeBEP20.sol";
 import "../interface/IDexPriceOracle.sol";
 
 contract PortfolioViewV2 is Ownable2Step, ReentrancyGuard {
     using Address for address payable;
+    using SafeBEP20 for IBEP20;
 
-    SafeBEP20 public paymentToken;
+    IBEP20 public paymentToken;
     IDexPriceOracle public dexPriceOracle;
 
     // Access mapping
@@ -43,6 +45,12 @@ contract PortfolioViewV2 is Ownable2Step, ReentrancyGuard {
 
         emit TokenAddressSet(_token);
         emit DexPriceOracleSet(_dexPriceOracle);
+    }
+
+    function setPriceOracle(address _token, address _dexPriceOracle) external onlyOwner {
+        dexPriceOracle = IDexPriceOracle(_dexPriceOracle);
+
+        require(dexPriceOracle.getTokenAddress() == _token, "Oracle token mismatch");
     }
 
     function setPrices(
@@ -120,12 +128,12 @@ contract PortfolioViewV2 is Ownable2Step, ReentrancyGuard {
         emit AccessPurchased(msg.sender, leader, parentID, isLifetime, block.number);
     }
 
-    function _canAccess(address viewer, address user) internal view returns (bool) {
-        return hasLifetimeAccess[viewer][user] || hasOneTimeAccess[viewer][user] > block.timestamp;
+    function _canAccess(address viewer, address leader) internal view returns (bool) {
+        return hasLifetimeAccess[viewer][leader] || hasOneTimeAccess[viewer][leader] > block.timestamp;
     }
 
-    function canAccess(address user) external view returns (bool) {
-        return _canAccess(msg.sender, address);
+    function canAccess(address leader) external view returns (bool) {
+        return _canAccess(msg.sender, leader);
     }
 
     function getTokenPriceInUSD() external view returns (uint256) {

@@ -6,6 +6,6 @@ export default {
     bsc: "0xEBbB60a9dbc4Af773dE38908A3a5ea27b84E338F",
   },
   payToSeeV2: {
-    bsc: "0x04a58D88B6D7C9CE92b2e4381e32ad6683F6c221",
+    bsc: "0x07ED1c99AEeE894234191eE39D04e70E7cCA386A",
   },
 };
